@@ -1,0 +1,13 @@
+{
+  "name": "nebuah",
+  "owner": {
+    "name": "Nebuah Labs"
+  },
+  "plugins": [
+    {
+      "name": "nebuah",
+      "source": "./nebuah",
+      "description": "Nebuah — Bio-Inspired Cognitive OS for Legal Research, Literature & Legal Consulting"
+    }
+  ]
+}
