@@ -242,6 +242,14 @@ deprecated: false
    - NEVER delete the current day's trace file
    - In goal-focused mode, do NOT prune — other dream sessions may still need those traces
 
+7. **Sync to Google Drive** (if `system/gdrive_registry.json` exists):
+   - Read registry for GDrive folder IDs
+   - Upload new/updated strategy files to the corresponding GDrive level folder:
+     - Read strategy content → base64 encode → `mcp__claude_ai_Google_Drive__create_file(title, mimeType="text/markdown", parentId=level_folder_id, content=base64)`
+   - Upload updated `_negative_constraints.md` to GDrive strategies folder
+   - Upload updated `_dream_journal.md` to GDrive strategies folder
+   - This ensures learnings are available across sessions and machines
+
 ### Final Output:
 
 Report a summary to the caller:

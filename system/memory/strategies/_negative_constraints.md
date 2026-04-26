@@ -48,3 +48,17 @@ The Dream Engine appends new constraints here during SWS (Slow Wave Sleep) phase
 **Severity:** medium
 **Learned from:** tr_1741348920000_d5e6
 **Dream ID:** dream_20260307_a4f7
+
+### Never create a new strategy without first checking all existing strategy files on disk for the same source_traces
+**Context:** dream consolidation, parallel dream sessions, strategy creation
+**Severity:** medium
+**Learned from:** tr_1745690400000_af01, tr_1745690460000_af02, tr_1745690520000_af03
+**Dream ID:** dream_20260426_7c3e
+**Detail:** Parallel dream sessions processing the same traces can create duplicate strategies with near-identical content. Before writing any new strategy file, search existing strategies for overlapping source_traces (any shared trace ID). If found, merge into the existing strategy instead of creating a new file. This was observed when three parallel dreams (7b3e, T1700_a3f7, 7c3e) all attempted to create strategies from the af01/af02/af03 traces, resulting in duplicate L2 and L3 strategy files that required post-hoc deduplication.
+
+### Never write a cross-reference to a strategy file without verifying the referenced file still exists
+**Context:** dream consolidation, strategy merging, duplicate removal
+**Severity:** low
+**Learned from:** tr_1745690400000_af01
+**Dream ID:** dream_20260426_7c3e
+**Detail:** When a parallel dream session deletes a duplicate strategy file, any other file that references the deleted duplicate will have a dangling reference. After any deduplication merge, scan all strategy files for references to the deleted ID and update them to point to the surviving file.

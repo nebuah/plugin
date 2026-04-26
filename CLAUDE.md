@@ -28,6 +28,16 @@ Nebuah implements a **4-level cognitive hierarchy** adapted from neuroscience:
 3. **Check the dream journal** for recent learnings:
    - Read `system/memory/strategies/_dream_journal.md` for the last 3 entries
 
+4. **Auto-bootstrap Google Drive** (first run only, then no-op):
+   - If `system/gdrive_registry.json` doesn't exist: search GDrive for "Nebuah" folder → use/create → build system sub-folders → write registry
+   - Only ask the user if multiple root folders found (disambiguation)
+   - After bootstrap, all GDrive operations are fully automatic
+
+5. **Search cross-project memories in Google Drive** (automatic):
+   - Use `mcp__claude_ai_Google_Drive__search_files` with `fullText contains '[goal keywords]'`
+   - Load matching strategies with `mcp__claude_ai_Google_Drive__read_file_content`
+   - Add as Priority 15 context (between constraints and local strategies)
+
 ## During Task Execution
 
 ### Trace Logging
@@ -86,8 +96,16 @@ system/memory/
 │   ├── _seeds/               # Bootstrap strategies (never deleted)
 │   ├── _negative_constraints.md  # What NOT to do
 │   └── _dream_journal.md    # Consolidation history
-└── traces/                   # Short-term memory (volatile execution logs)
-    └── trace_YYYY-MM-DD.md   # Daily trace files
+├── traces/                   # Short-term memory (volatile execution logs)
+│   └── trace_YYYY-MM-DD.md   # Daily trace files
+└── gdrive_registry.json      # Google Drive folder ID mappings
+
+Google Drive (Nebuah/):        # Cloud memory (persistent, shared)
+├── projects/[ProjectName]/
+│   ├── input/                # Source documents (Google Docs, PDF, etc.)
+│   ├── output/               # Generated deliverables
+│   └── memory/long_term/     # Project-specific learnings
+└── system/memory/strategies/ # Mirror of local strategies
 ```
 
 ## Strategy Format
@@ -142,6 +160,26 @@ For complex goals, additional agents are created beyond the minimum 3. After exe
 
 Loop commands are session-scoped (max 3 days) and stop when the session ends or Ctrl+C is pressed.
 
+## Google Drive Integration (Seamless)
+
+Nebuah integrates with Google Drive **fully automatically**. The user types `/nebuah [goal]` and all GDrive operations happen transparently — no setup commands, no manual sync.
+
+### How It Works
+1. **Auto-bootstrap** (first run only): Detects or creates the Nebuah root folder in GDrive. Only asks the user if disambiguation is needed.
+2. **Project creation**: Automatically creates GDrive project folders (input/, output/, memory/) and downloads any input documents.
+3. **Output upload**: Automatically uploads deliverables to GDrive after production.
+4. **Memory sync**: Automatically uploads strategies/constraints/journal to GDrive after dream consolidation.
+5. **Cross-project memory**: Automatically searches GDrive for strategies from past projects during planning.
+
+### Manual Override Commands (Advanced)
+- `/nebuah gdrive pull [project]` — Force download input documents
+- `/nebuah gdrive push [project]` — Force upload outputs + memories
+- `/nebuah gdrive sync` — Force bidirectional system memory sync
+- `/nebuah gdrive status` — Show sync state
+
+### Strategy Upload Rule
+Always upload strategies with `disableConversionToGoogleType: true` to preserve YAML frontmatter.
+
 ## Reference Specifications
 
 Detailed specifications for system internals are in `nebuah/system_files/`:
@@ -149,6 +187,7 @@ Detailed specifications for system internals are in `nebuah/system_files/`:
 - **MemoryTraceManager.md**: Trace schema, lifecycle, and hierarchy rules
 - **QueryMemoryTool.md**: Strategy scoring algorithm and query patterns
 - **ClaudeCodeToolMap.md**: Tool-to-operation mapping and workflow patterns
+- **GDriveSync.md**: Google Drive integration, sync protocols, and cross-project memory access
 
 Consult these when implementing complex memory operations or debugging the consolidation pipeline.
 
@@ -159,3 +198,8 @@ Consult these when implementing complex memory operations or debugging the conso
 3. PREFER applying existing strategies over improvising from scratch
 4. UPDATE strategy confidence after each application (success: +0.05, failure: -0.1)
 5. DEPRECATE strategies where `failure_count > success_count * 2`
+6. SYNC strategies to Google Drive after dream consolidation (automatic)
+7. NEVER upload traces or agent definitions to Google Drive (sensitive data)
+8. NEVER modify cross-project memories in GDrive (read-only access)
+9. AUTO-BOOTSTRAP GDrive on first run — never require manual setup commands
+10. NEVER ask the user more than ONE question about GDrive setup (only for root folder disambiguation)

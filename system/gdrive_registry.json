@@ -1,0 +1,44 @@
+{
+  "version": 1,
+  "description": "Maps local Nebuah paths to Google Drive folder IDs. Source of truth for all GDrive sync operations.",
+  "root": {
+    "name": "Nebuah",
+    "id": "1Ry365y1w5yancVLmosByCnR-MWCpCmxc",
+    "url": "https://drive.google.com/drive/folders/1Ry365y1w5yancVLmosByCnR-MWCpCmxc"
+  },
+  "folders": {
+    "projects": {
+      "local_path": "projects/",
+      "gdrive_id": "1XQCMY-Hv_2pbJKgKWzyj6LMIQ23ylydl"
+    },
+    "system": {
+      "local_path": "system/",
+      "gdrive_id": "1khmm3sp7wV5HmqeOUFlb5V6uMYVIjyia"
+    },
+    "system_memory": {
+      "local_path": "system/memory/",
+      "gdrive_id": "1BHERP0HUslcErNfg1EjpHx2cPwRYkdl0"
+    },
+    "strategies": {
+      "local_path": "system/memory/strategies/",
+      "gdrive_id": "1gnWPVkO8c4HBPQjEhzVnBTfpsKIF8GJv"
+    },
+    "level_1_epics": {
+      "local_path": "system/memory/strategies/level_1_epics/",
+      "gdrive_id": "1qbcLMQzfjaEv69YiCqNx9EtbZzk3qJvt"
+    },
+    "level_2_architecture": {
+      "local_path": "system/memory/strategies/level_2_architecture/",
+      "gdrive_id": "1YIF2iScp285otUSckU2PhmK_MRKezYQI"
+    },
+    "level_3_tactical": {
+      "local_path": "system/memory/strategies/level_3_tactical/",
+      "gdrive_id": "19QsdAF3Huq03Z_waeWQKDuPVQNPdfXbn"
+    },
+    "level_4_reactive": {
+      "local_path": "system/memory/strategies/level_4_reactive/",
+      "gdrive_id": "1AmO5060VgUkoXJABtcjFMZ7MYn2TqHKM"
+    }
+  },
+  "project_registry": {}
+}

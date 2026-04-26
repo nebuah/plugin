@@ -6,7 +6,7 @@ Defines the persistent knowledge layer and memory hierarchy for the Nebuah cogni
 
 ```
 system/memory/
-├── strategies/                    # LONG-TERM MEMORY (persistent)
+├── strategies/                    # LONG-TERM MEMORY (persistent, local)
 │   ├── level_1_epics/             # Engagement-level patterns
 │   ├── level_2_architecture/      # Legal strategy & framework strategies
 │   ├── level_3_tactical/          # Document/task-level tactics
@@ -14,8 +14,20 @@ system/memory/
 │   ├── _seeds/                    # Bootstrap strategies (immutable)
 │   ├── _negative_constraints.md   # Anti-patterns & guardrails
 │   └── _dream_journal.md         # Consolidation history
-└── traces/                        # SHORT-TERM MEMORY (volatile)
-    └── trace_YYYY-MM-DD.md        # Daily execution logs
+├── traces/                        # SHORT-TERM MEMORY (volatile, local only)
+│   └── trace_YYYY-MM-DD.md        # Daily execution logs
+└── gdrive_registry.json           # GDrive folder ID mappings
+
+Google Drive (Nebuah/):             # CLOUD MEMORY (persistent, shared)
+├── projects/[ProjectName]/
+│   ├── input/                     # Source documents
+│   ├── output/                    # Generated deliverables
+│   └── memory/long_term/          # Project-specific learnings
+└── system/memory/strategies/      # Mirror of local strategies
+    ├── level_1_epics/
+    ├── level_2_architecture/
+    ├── level_3_tactical/
+    └── level_4_reactive/
 ```
 
 ## Memory Types
@@ -53,6 +65,28 @@ system/memory/
 - Low initial confidence (0.5) — must be validated through use
 - Serve as templates for Dream Engine to create evolved strategies
 
+### Cloud Memory (Google Drive)
+
+**Nature**: Persistent, shared, cross-session
+**Location**: Google Drive `Nebuah/` folder tree
+**Lifecycle**: Synced after dream consolidation → queried for cross-project knowledge → updated with new learnings
+**Properties**:
+- Shared: Accessible across machines and sessions
+- Project-organized: Each project has its own input/output/memory
+- Cross-project: Strategies from past projects queryable by keyword
+- Format-flexible: Supports Google Docs, PDF, Markdown, plain text
+- Sovereignty: Data stays in the user's Google Workspace (never on third-party servers)
+
+**Supported Input Formats**:
+| Format | GDrive MIME Type | Read Method | Local Format |
+|--------|-----------------|-------------|-------------|
+| Google Docs | `application/vnd.google-apps.document` | `read_file_content` | Markdown (.md) |
+| PDF | `application/pdf` | `read_file_content` | Text extraction |
+| Markdown | `text/markdown` | `download_file_content` | As-is (.md) |
+| Plain Text | `text/plain` | `download_file_content` | As-is (.txt) |
+| Google Sheets | `application/vnd.google-apps.spreadsheet` | `read_file_content` | Structured text |
+| Word Documents | `application/vnd.openxmlformats-officedocument.wordprocessingml.document` | `read_file_content` | Text extraction |
+
 ## Memory Operations
 
 | Operation | Agent | Input | Output |
@@ -65,6 +99,11 @@ system/memory/
 | **Update Strategy** | DreamEngineAgent | New evidence | Updated version, confidence |
 | **Read Constraints** | SystemAgent, Any | Context | Applicable anti-patterns |
 | **Write Constraint** | DreamEngineAgent | Failure analysis | New constraint entry |
+| **GDrive Download** | SystemAgent | GDrive file ID | Local file |
+| **GDrive Upload** | SystemAgent, DreamEngineAgent | Local file | GDrive file |
+| **GDrive Search** | Any agent | Keywords, parentId | Matching file list |
+| **Cross-Project Query** | Any agent | Goal keywords | Strategies from other projects |
+| **Memory Sync** | SystemAgent | Local + GDrive state | Synchronized state |
 
 ## Strategy Retrieval Algorithm
 
@@ -92,9 +131,11 @@ Before executing a task, the system assembles context from memory (inspired by R
 
 ```
 Full Context Assembly:
-├── [Priority 10] Negative Constraints (always loaded)
-├── [Priority 20] Matched Strategies (loaded if query matches)
-├── [Priority 30] Recent Dream Journal (last 3 entries)
+├── [Priority 10] Negative Constraints (always loaded, local)
+├── [Priority 15] Cross-Project Strategies (loaded from GDrive if relevant match found)
+├── [Priority 20] Matched Strategies (loaded from local if query matches)
+├── [Priority 30] Recent Dream Journal (last 3 entries, local)
+├── [Priority 35] Project Input Documents (downloaded from GDrive at project init)
 ├── [Priority 40] Case-Specific Learnings (if in case/engagement context)
 └── [Priority 50] Seed Strategies (fallback if no learned strategies)
 ```
@@ -116,9 +157,40 @@ required: boolean   # Whether this section must be present
 | Section | Priority | Source | Required |
 |---------|----------|--------|----------|
 | Constraints | 10 | `strategies/_negative_constraints.md` | Yes |
+| Cross-Project Strategies | 15 | GDrive `Nebuah/system/memory/strategies/` (query-matched) | No |
 | Active Strategies | 20 | `strategies/level_*/` (query-matched) | No |
 | Dream Journal | 30 | `strategies/_dream_journal.md` | No |
+| Project Input Documents | 35 | GDrive `Nebuah/projects/[name]/input/` | No |
 | Seed Strategies | 50 | `strategies/_seeds/` | No |
+
+## Cross-Project Memory Access
+
+Sub-agents and skills can access memories from past projects stored in Google Drive. This enables knowledge transfer between engagements.
+
+### Query Pattern
+```
+1. Use mcp__claude_ai_Google_Drive__search_files with:
+   query: "fullText contains '[keyword]'"
+   — Searches across all project memories in GDrive
+
+2. Filter results by parentId to scope to specific folders:
+   - strategies/: for reusable patterns
+   - projects/[name]/memory/: for project-specific learnings
+
+3. Use mcp__claude_ai_Google_Drive__read_file_content to load matches
+
+4. Score using the standard composite scoring algorithm:
+   composite = (trigger_score * 0.5) + (confidence * 0.3) + (success_rate * 0.2)
+
+5. Inject top matches into agent context at Priority 15
+```
+
+### Access Scoping
+| Agent Type | Can Access |
+|-----------|-----------|
+| SystemAgent | All project memories + system strategies |
+| Specialized Agent | Own project memories + system strategies |
+| DreamEngineAgent | All traces + all strategies (for consolidation) |
 
 ## Memory Hygiene
 
@@ -127,3 +199,4 @@ required: boolean   # Whether this section must be present
 3. **Constraint Deduplication**: Similar constraints are merged, not duplicated
 4. **Journal Trimming**: Dream journal entries older than 30 days can be summarized into a single "epoch summary"
 5. **Seed Preservation**: Files in `_seeds/` are NEVER modified or deleted
+6. **GDrive Sync**: After every dream consolidation, sync new/updated strategies to Google Drive. Cross-project memories are read-only from GDrive (never modified remotely).

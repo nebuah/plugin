@@ -26,6 +26,17 @@ Maps Nebuah cognitive operations to Claude Code's native tool inventory. Updated
 | `Bash` | Run shell commands (document processing, file ops) | L3-L4 |
 | `Task` | Delegate to sub-agents (legal specialists) | L1-L2 |
 
+### Google Drive Operations (MCP)
+| Tool | Purpose | Trace Level |
+|------|---------|-------------|
+| `mcp__claude_ai_Google_Drive__create_file` | Upload files to GDrive (base64 content), create GDrive folders and native docs | L3-L4 |
+| `mcp__claude_ai_Google_Drive__download_file_content` | Download raw file content from GDrive | L3-L4 |
+| `mcp__claude_ai_Google_Drive__read_file_content` | Read natural language representation of GDrive files | L4 |
+| `mcp__claude_ai_Google_Drive__search_files` | Search GDrive with structured queries (title, fullText, mimeType, parentId) | L4 |
+| `mcp__claude_ai_Google_Drive__list_recent_files` | List recently modified files | L4 |
+| `mcp__claude_ai_Google_Drive__get_file_metadata` | Get file metadata (size, owner, dates) | L4 |
+| `mcp__claude_ai_Google_Drive__get_file_permissions` | Get file sharing permissions | L4 |
+
 ## Nebuah Operation Mappings
 
 ### 1. Strategy Query
@@ -102,6 +113,46 @@ Pattern:
   2. Write to system/memory/strategies/level_[N]_[name]/[slug].md
 ```
 
+### 9. GDrive Input Download
+```
+Operation: Download project input documents from Google Drive to local
+Tools: mcp__claude_ai_Google_Drive__search_files → mcp__claude_ai_Google_Drive__read_file_content → Write
+Pattern:
+  1. search_files(query="parentId = '[input_folder_id]'") → list of files
+  2. For each file: read_file_content(fileId) → text content
+  3. Write(local_path, content)
+```
+
+### 10. GDrive Output Upload
+```
+Operation: Upload project outputs to Google Drive
+Tools: Read → mcp__claude_ai_Google_Drive__create_file
+Pattern:
+  1. Read(local_output_file) → content
+  2. Base64 encode the content
+  3. create_file(title, mimeType, parentId, content=base64)
+```
+
+### 11. GDrive Memory Sync
+```
+Operation: Sync strategies between local and Google Drive
+Tools: Glob → Read → mcp__claude_ai_Google_Drive__search_files → mcp__claude_ai_Google_Drive__create_file
+Pattern:
+  1. Glob("system/memory/strategies/level_*/*.md") → local strategies
+  2. search_files(query="parentId = '[gdrive_strategies_id]'") → remote strategies
+  3. Compare → upload new/updated local strategies to GDrive
+```
+
+### 12. Cross-Project Memory Query
+```
+Operation: Search past project memories in Google Drive
+Tools: mcp__claude_ai_Google_Drive__search_files → mcp__claude_ai_Google_Drive__read_file_content
+Pattern:
+  1. search_files(query="fullText contains '[keyword]' and parentId = '[strategies_folder_id]'")
+  2. read_file_content(matching_file_ids) → strategy text
+  3. Score and inject into agent context
+```
+
 ## Common Workflow Patterns
 
 ### Full Task Execution
@@ -126,6 +177,18 @@ Pattern:
 4. [Write] Update L2 trace with aggregate outcome
 ```
 
+### GDrive-Enhanced Task Execution
+```
+1. [GDrive] Search for input folder → download input documents to local
+2. [Grep] Query local strategies
+3. [GDrive] Search cross-project memories for additional strategies
+4. [Read] Load constraints
+5. [Write] Create traces, execute tasks locally
+6. [GDrive] Upload outputs to project's GDrive output folder
+7. [GDrive] Sync updated strategies to GDrive
+8. [Task] Dream consolidation
+```
+
 ### Post-Failure Learning
 ```
 1. [Write] Log failure trace with detailed reason
@@ -147,3 +210,6 @@ Pattern:
 | `Grep` is single-line by default | Use `multiline: true` for cross-line patterns |
 | `Bash` has 2-minute default timeout | Use `timeout` parameter for long operations |
 | `Edit` requires unique `old_string` | Include more surrounding context for uniqueness |
+| `GDrive create_file` content must be base64 encoded | Use `btoa()` or base64 encoding |
+| `GDrive read_file_content` may truncate very large files | Use `download_file_content` for complete data |
+| `GDrive search_files` query syntax requires exact operator format | See GDriveSync.md for query examples |

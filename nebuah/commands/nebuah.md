@@ -157,9 +157,99 @@ To stop a running dream loop:
 Note: /loop is session-scoped and will automatically stop after 3 days or when the session ends.
 ```
 
+## GOOGLE DRIVE COMMANDS (Manual Overrides)
+
+These commands are available for manual control. In normal operation, GDrive sync is **fully automatic** — the execution workflow handles bootstrap, input download, output upload, and memory sync without user intervention.
+
+### `/nebuah gdrive pull [project]`
+
+Manually download input documents from a project's Google Drive `input/` folder to local.
+
+```
+Steps:
+1. Run GDrive Auto-Bootstrap (Step 0) if needed
+2. Read `system/gdrive_registry.json` to get the GDrive project folder ID
+3. Use mcp__claude_ai_Google_Drive__search_files:
+   query: "parentId = '[project_input_folder_id]'"
+4. For each file found:
+   a. Use mcp__claude_ai_Google_Drive__read_file_content(fileId) to get text
+   b. Write content to local `projects/[project]/input/[filename].md`
+5. Report: files downloaded, total size, formats converted
+```
+
+### `/nebuah gdrive push [project]`
+
+Manually upload project outputs and memories to Google Drive.
+
+```
+Steps:
+1. Run GDrive Auto-Bootstrap (Step 0) if needed
+2. Read `system/gdrive_registry.json` to get GDrive folder IDs
+3. For each file in `projects/[project]/output/`:
+   a. Read local file content → base64 encode → upload via create_file
+4. For each file in `projects/[project]/memory/long_term/`:
+   a. Same upload process to GDrive project memory folder
+5. Report: files uploaded, sync status
+```
+
+### `/nebuah gdrive sync`
+
+Manually trigger full bidirectional sync of system memory.
+
+```
+Steps:
+1. Run GDrive Auto-Bootstrap (Step 0) if needed
+2-4. Same as automatic sync (see Step 7.5)
+```
+
+### `/nebuah gdrive status`
+
+Show current sync state.
+
+```
+Steps:
+1. Read `system/gdrive_registry.json`
+2. Count local strategies vs GDrive strategies
+3. List projects with GDrive folders
+4. Show last sync timestamp (from registry)
+5. Report any unsynced changes
+```
+
 ## EXECUTION WORKFLOW
 
 For non-dream goals, execute the standard cognitive pipeline:
+
+### Step 0: GDRIVE AUTO-BOOTSTRAP (Run Once)
+
+Before anything else, ensure Google Drive is connected. This step is **idempotent** — it only does work on the very first run, then becomes a no-op.
+
+```
+1. Check if `system/gdrive_registry.json` exists and has a valid `root.id`:
+   - YES → GDrive is bootstrapped. Skip to Step 1.
+   - NO → Continue with bootstrap:
+
+2. Search Google Drive for existing "Nebuah" root folder:
+   mcp__claude_ai_Google_Drive__search_files(
+     query: "title = 'Nebuah' and mimeType = 'application/vnd.google-apps.folder'"
+   )
+
+3. Evaluate results:
+   a. ONE folder found → Use it as root. No user interaction needed.
+   b. MULTIPLE folders found → Ask user ONCE which folder to use (this is the ONLY question ever asked).
+   c. NO folder found → Create it:
+      mcp__claude_ai_Google_Drive__create_file(
+        title: "Nebuah",
+        mimeType: "application/vnd.google-apps.folder"
+      )
+
+4. Create system sub-folders under the root (search before creating each to avoid duplicates):
+   - projects/, system/, system/memory/, system/memory/strategies/
+   - strategies/level_1_epics/, level_2_architecture/, level_3_tactical/, level_4_reactive/
+
+5. Write `system/gdrive_registry.json` with all folder ID mappings.
+
+6. Bootstrap is complete. This step will be a no-op on all future runs.
+```
 
 ### Step 1: MEMORY QUERY (Load Context)
 
@@ -169,6 +259,7 @@ Before planning, load the system's accumulated knowledge:
 2. Read `system/memory/strategies/_dream_journal.md` — check last 3 entries for recent learnings
 3. Use `Grep` on `system/memory/strategies/level_*/` for keywords from the user's goal
 4. If matching strategies found (confidence >= 0.5), note them for the plan
+5. **Cross-project memory** (GDrive): Use `mcp__claude_ai_Google_Drive__search_files` with `fullText contains '[goal keywords]'` to find relevant strategies from past projects in Google Drive. Load matches with `read_file_content` and add as Priority 15 context.
 
 ### Step 2: ANALYZE & PLAN (Triad Decomposition)
 
@@ -195,17 +286,40 @@ Before planning, load the system's accumulated knowledge:
 5. Map matching strategies to sub-tasks
 6. Even for L4 REACTIVE goals, enforce the 3-agent minimum (e.g., Execute Agent, Verify Agent, Log Agent)
 
-### Step 3: CREATE PROJECT STRUCTURE
+### Step 3: CREATE PROJECT STRUCTURE (Local + GDrive)
 
+Create the local project structure AND its GDrive mirror automatically:
+
+**Local:**
 ```
 projects/[CaseName]/
 ├── components/
 │   └── agents/          # Specialized agents for this case/engagement
+├── input/               # Input documents (downloaded from GDrive)
 ├── output/              # Final deliverables (memos, briefs, contracts)
 └── memory/
     ├── short_term/      # Case interaction logs
     └── long_term/       # Case-consolidated learnings
 ```
+
+**GDrive (automatic):**
+```
+1. Read `system/gdrive_registry.json` for projects/ folder ID
+2. Search GDrive for existing project folder:
+   mcp__claude_ai_Google_Drive__search_files(
+     query: "title = '[CaseName]' and parentId = '[projects_folder_id]'"
+   )
+3. If NOT found → create project folder + sub-folders (input/, output/, memory/long_term/)
+4. If found → reuse existing folder, discover sub-folder IDs
+5. Update `system/gdrive_registry.json` with project folder IDs
+6. Download input documents from GDrive input/ folder:
+   a. mcp__claude_ai_Google_Drive__search_files(query: "parentId = '[input_folder_id]'")
+   b. For each file: read_file_content(fileId) → Write to local projects/[CaseName]/input/
+   c. Supported formats: Google Docs → markdown, PDF → text, .txt, .md, .docx
+7. Report: "[N] input documents downloaded from GDrive" (or "No input documents found in GDrive")
+```
+
+This is fully automatic — the user never needs to run `gdrive init` or `gdrive pull` separately.
 
 ### Step 4: CREATE SPECIALIZED AGENTS (Minimum 3)
 
@@ -231,11 +345,17 @@ For each sub-task in dependency order:
 3. **Log the interaction**: Use the MemoryAnalysisAgent to record the full exchange
 4. **Update trace**: Set outcome based on results
 
-### Step 6: PRODUCE OUTPUT
+### Step 6: PRODUCE OUTPUT + UPLOAD TO GDRIVE
 
 1. Ensure all deliverables are saved to `projects/[CaseName]/output/`
-2. Provide a clear summary of what was produced
-3. List all files created/modified
+2. **Auto-upload to GDrive**:
+   a. Read `system/gdrive_registry.json` for project output folder ID
+   b. For each file in `projects/[CaseName]/output/`:
+      - Read local file → base64 encode → upload via `mcp__claude_ai_Google_Drive__create_file`
+   c. For each file in `projects/[CaseName]/memory/long_term/`:
+      - Same upload process to GDrive project memory folder
+3. Provide a clear summary of what was produced
+4. List all files created/modified (local + GDrive)
 
 ### Step 7: CONSOLIDATE & LEARN (Per-Agent Dream Cycles)
 
@@ -256,6 +376,13 @@ Report consolidation results:
    - Per-agent dream results (new strategies, constraints, updates)
    - Total new strategies learned
    - Total new constraints identified
+
+**Auto-sync learnings to GDrive** (runs automatically after dreams complete):
+1. Read `system/gdrive_registry.json` for strategy folder IDs
+2. For each new or updated strategy file:
+   - Read local content → base64 encode → upload to corresponding GDrive level folder
+3. Upload updated `_negative_constraints.md` and `_dream_journal.md` to GDrive strategies folder
+4. This ensures cross-session and cross-machine availability of all learnings
 
 ### Step 8: REPORT TO USER
 
@@ -282,6 +409,13 @@ Provide a structured summary:
 - Total new strategies: [count]
 - Total updated strategies: [count]
 - Total new constraints: [count]
+
+### Google Drive (Automatic)
+- GDrive bootstrap: [already bootstrapped | bootstrapped this run | root folder created]
+- Input documents pulled: [count] from GDrive → local
+- Output documents pushed: [count] from local → GDrive
+- Strategies synced: [count] to GDrive
+- Cross-project memories loaded: [count] from past projects
 
 ### Learnings
 [2-3 sentences summarizing what the system learned from this execution]

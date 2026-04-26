@@ -25,6 +25,12 @@ Before planning ANY task:
 
 3. **Check dream journal**: Read the last 3 entries of `system/memory/strategies/_dream_journal.md` for recent learnings
 
+4. **Cross-project memory from Google Drive**: Use `mcp__claude_ai_Google_Drive__search_files` to find strategies from past projects:
+   - Query: `fullText contains '[goal keywords]'`
+   - Filter by parentId to scope to strategy folders
+   - Use `mcp__claude_ai_Google_Drive__read_file_content` to load matches
+   - Add matching strategies at Priority 15 in context assembly
+
 ### 2. Hierarchical Task Decomposition
 
 Decompose goals following the Nebuah 4-level hierarchy:
@@ -85,18 +91,49 @@ You are responsible for creating L1 and L2 traces. Format:
 
 Write traces to `system/memory/traces/trace_YYYY-MM-DD.md` (append to daily file).
 
-### 5. Project Structure Creation
+### 5. Project Structure Creation (Local + GDrive Automatic)
 
-When starting a new case/engagement, create:
+**GDrive Auto-Bootstrap** (runs once, then becomes a no-op):
+1. Check if `system/gdrive_registry.json` exists and has a valid `root.id`
+2. If NO: search GDrive for "Nebuah" folder → use if found, create if not → create system sub-folders → write registry
+3. Only ask the user if multiple "Nebuah" folders are found (disambiguation). This is the **only user interaction** for GDrive setup.
+
+**Project Creation** (automatic for every new project):
+
+Local:
 ```
 projects/[CaseName]/
 ├── components/
 │   └── agents/          # Dynamic specialized agents
-├── output/              # Final deliverables (memos, briefs, contracts)
+├── input/               # Input documents (auto-downloaded from GDrive)
+├── output/              # Final deliverables (auto-uploaded to GDrive)
 └── memory/
     ├── short_term/      # Case-specific interaction logs
     └── long_term/       # Case-specific consolidated learnings
 ```
+
+GDrive (automatic, no user action needed):
+1. Search GDrive for existing project folder under `projects/` parent
+2. If not found → create project folder + sub-folders (input/, output/, memory/long_term/)
+3. If found → reuse existing, discover sub-folder IDs
+4. Update `system/gdrive_registry.json` with project folder IDs
+5. Download any input documents from GDrive `input/` to local `projects/[CaseName]/input/`
+
+### 5.5. Google Drive Automatic Sync (Seamless)
+
+All GDrive sync is **automatic** — no user commands needed:
+
+**Input Download** (at project creation, Step 3):
+- Automatically searches and downloads input documents from GDrive input/ folder
+- Supports: Google Docs → markdown, PDF → text, .txt, .md, .docx
+
+**Output Upload** (after producing deliverables, Step 6):
+- Automatically uploads all files in `projects/[CaseName]/output/` to GDrive
+- Automatically uploads project memories to GDrive project memory folder
+
+**Memory Sync** (after dream consolidation, Step 7):
+- Automatically uploads new/updated strategies to GDrive strategy folders
+- Automatically uploads updated constraints and dream journal
 
 ### 6. Post-Task Consolidation (Per-Agent Dreams)
 
@@ -116,17 +153,20 @@ After completing any task, run **one dream cycle per agent that executed** (mini
 
 When you receive a goal:
 
+0. **GDRIVE BOOTSTRAP**: Ensure GDrive is connected (auto-bootstrap, no-op if already done)
 1. **ANALYZE**: Determine scope, hierarchy level, and complexity
-2. **QUERY MEMORY**: Search strategies and constraints (as described above)
+2. **QUERY MEMORY**: Search strategies, constraints, and cross-project GDrive memories
 3. **PLAN**: Decompose into sub-tasks with clear hierarchy
-4. **CREATE ROOT TRACE**: Log the L1/L2 trace with initial metadata
-5. **DELEGATE**: For each sub-task (always at least 3 from Triad Decomposition):
+4. **CREATE PROJECT + GDRIVE FOLDERS**: Create local structure + GDrive mirror + download inputs (all automatic)
+5. **CREATE ROOT TRACE**: Log the L1/L2 trace with initial metadata
+6. **DELEGATE**: For each sub-task (always at least 3 from Triad Decomposition):
    - Create specialized agent and delegate via Task
    - Always pass relevant strategies and constraints to delegated agents
    - No direct execution — all sub-tasks are delegated to agents
-6. **LOG**: Ensure all sub-task traces reference the parent trace
-7. **CONSOLIDATE**: Update root trace outcome, invoke DreamEngineAgent if warranted
-8. **REPORT**: Summarize results and any new learnings to the user
+7. **PRODUCE OUTPUT + UPLOAD**: Save deliverables locally, auto-upload to GDrive
+8. **LOG**: Ensure all sub-task traces reference the parent trace
+9. **CONSOLIDATE + SYNC**: Update root trace, invoke DreamEngineAgent, auto-sync learnings to GDrive
+10. **REPORT**: Summarize results and any new learnings to the user
 
 ## Critical Rules
 
