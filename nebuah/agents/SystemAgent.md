@@ -119,21 +119,28 @@ GDrive (automatic, no user action needed):
 4. Update `system/gdrive_registry.json` with project folder IDs
 5. Download any input documents from GDrive `input/` to local `projects/[CaseName]/input/`
 
-### 5.5. Google Drive Automatic Sync (Seamless)
+### 5.5. Google Drive Sync (MANDATORY — Never Skip)
 
-All GDrive sync is **automatic** — no user commands needed:
+All GDrive sync is **mandatory** — every file produced MUST be saved to Google Drive:
+
+**ENFORCEMENT RULE**: If the Google Drive MCP tools (`mcp__claude_ai_Google_Drive__*`) are available, you MUST use them. Never silently skip GDrive operations. If `system/gdrive_registry.json` is missing, run the auto-bootstrap protocol (Step 0) before proceeding — do NOT skip GDrive.
 
 **Input Download** (at project creation, Step 3):
-- Automatically searches and downloads input documents from GDrive input/ folder
+- MUST search and download input documents from GDrive input/ folder
 - Supports: Google Docs → markdown, PDF → text, .txt, .md, .docx
 
 **Output Upload** (after producing deliverables, Step 6):
-- Automatically uploads all files in `projects/[CaseName]/output/` to GDrive
-- Automatically uploads project memories to GDrive project memory folder
+- MUST upload ALL files in `projects/[CaseName]/output/` to GDrive
+- MUST upload project memories to GDrive project memory folder
+- Use `mimeType: "text/plain"` with `disableConversionToGoogleType: true` for all markdown/text files to preserve formatting
+- If output directory is empty, log a warning trace but do NOT treat as success without attempting upload
 
 **Memory Sync** (after dream consolidation, Step 7):
-- Automatically uploads new/updated strategies to GDrive strategy folders
-- Automatically uploads updated constraints and dream journal
+- MUST upload new/updated strategies to GDrive strategy folders
+- MUST upload updated constraints and dream journal
+- Always use `disableConversionToGoogleType: true` for strategy files (preserves YAML frontmatter)
+
+**Failure Handling**: If a GDrive upload fails, retry once. If it still fails, continue with remaining uploads and report failures in the execution summary. NEVER silently skip uploads.
 
 ### 6. Post-Task Consolidation (Per-Agent Dreams)
 
@@ -153,20 +160,20 @@ After completing any task, run **one dream cycle per agent that executed** (mini
 
 When you receive a goal:
 
-0. **GDRIVE BOOTSTRAP**: Ensure GDrive is connected (auto-bootstrap, no-op if already done)
+0. **GDRIVE BOOTSTRAP** (MANDATORY): Ensure GDrive is connected. If `system/gdrive_registry.json` is missing or invalid, run bootstrap NOW. Never proceed without GDrive being operational.
 1. **ANALYZE**: Determine scope, hierarchy level, and complexity
 2. **QUERY MEMORY**: Search strategies, constraints, and cross-project GDrive memories
 3. **PLAN**: Decompose into sub-tasks with clear hierarchy
-4. **CREATE PROJECT + GDRIVE FOLDERS**: Create local structure + GDrive mirror + download inputs (all automatic)
+4. **CREATE PROJECT + GDRIVE FOLDERS** (MANDATORY): Create local structure + GDrive mirror + download inputs. GDrive folder creation is NOT optional.
 5. **CREATE ROOT TRACE**: Log the L1/L2 trace with initial metadata
 6. **DELEGATE**: For each sub-task (always at least 3 from Triad Decomposition):
    - Create specialized agent and delegate via Task
    - Always pass relevant strategies and constraints to delegated agents
    - No direct execution — all sub-tasks are delegated to agents
-7. **PRODUCE OUTPUT + UPLOAD**: Save deliverables locally, auto-upload to GDrive
+7. **PRODUCE OUTPUT + UPLOAD TO GDRIVE** (MANDATORY): Save deliverables locally AND upload to GDrive. Both are required. Use `disableConversionToGoogleType: true` for markdown files.
 8. **LOG**: Ensure all sub-task traces reference the parent trace
-9. **CONSOLIDATE + SYNC**: Update root trace, invoke DreamEngineAgent, auto-sync learnings to GDrive
-10. **REPORT**: Summarize results and any new learnings to the user
+9. **CONSOLIDATE + SYNC TO GDRIVE** (MANDATORY): Update root trace, invoke DreamEngineAgent, sync ALL learnings to GDrive. Never skip the GDrive sync.
+10. **REPORT**: Summarize results including GDrive sync status (files uploaded, any failures)
 
 ## Critical Rules
 
@@ -177,3 +184,6 @@ When you receive a goal:
 5. When a strategy exists with confidence >= 0.7, follow it closely unless the user explicitly requests a different approach
 6. ALWAYS create at least 3 agents per goal (Triad Decomposition: Research, Quality, Integration)
 7. ALWAYS run at least 3 dream cycles after execution — one per agent, all in parallel
+8. **GOOGLE DRIVE IS MANDATORY**: Every output, strategy, constraint, and dream journal entry MUST be uploaded to Google Drive. If GDrive MCP tools are available, USE them. Never silently skip GDrive operations. If the registry is missing, bootstrap it — do not skip.
+9. **ALWAYS use `disableConversionToGoogleType: true`** when uploading markdown or strategy files to GDrive. This preserves YAML frontmatter and file formatting. Use `mimeType: "text/plain"` (not `"text/markdown"`) with this flag.
+10. **NEVER complete Step 8 (REPORT) without confirming GDrive sync** — the report MUST include a "Google Drive" section showing what was uploaded. If nothing was uploaded to GDrive, this is a failure condition that must be investigated and fixed before reporting.

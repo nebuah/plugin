@@ -160,16 +160,22 @@ For complex goals, additional agents are created beyond the minimum 3. After exe
 
 Loop commands are session-scoped (max 3 days) and stop when the session ends or Ctrl+C is pressed.
 
-## Google Drive Integration (Seamless)
+## Google Drive Integration (MANDATORY — Never Optional)
 
-Nebuah integrates with Google Drive **fully automatically**. The user types `/nebuah [goal]` and all GDrive operations happen transparently — no setup commands, no manual sync.
+Nebuah integrates with Google Drive as a **MANDATORY requirement**. Every file produced by the system MUST be saved to Google Drive. The user types `/nebuah [goal]` and all GDrive operations happen transparently — no setup commands, no manual sync. **GDrive is NOT optional** — if the MCP tools are available, they MUST be used.
+
+### Enforcement Rules
+- **NEVER silently skip** GDrive uploads. If `system/gdrive_registry.json` is missing, bootstrap it immediately — do not skip.
+- **ALWAYS use `disableConversionToGoogleType: true`** when uploading markdown, strategy, or any text file. Use `mimeType: "text/plain"` (not `"text/markdown"`). This prevents Google from auto-converting files and corrupting YAML frontmatter.
+- **NEVER report task success** without confirming GDrive uploads completed. The execution report MUST include GDrive status.
+- **If an upload fails**, retry once. If it still fails, log the failure explicitly — never hide it.
 
 ### How It Works
 1. **Auto-bootstrap** (first run only): Detects or creates the Nebuah root folder in GDrive. Only asks the user if disambiguation is needed.
-2. **Project creation**: Automatically creates GDrive project folders (input/, output/, memory/) and downloads any input documents.
-3. **Output upload**: Automatically uploads deliverables to GDrive after production.
-4. **Memory sync**: Automatically uploads strategies/constraints/journal to GDrive after dream consolidation.
-5. **Cross-project memory**: Automatically searches GDrive for strategies from past projects during planning.
+2. **Project creation**: MUST create GDrive project folders (input/, output/, memory/) and download any input documents.
+3. **Output upload**: MUST upload ALL deliverables to GDrive after production. Non-optional.
+4. **Memory sync**: MUST upload ALL strategies/constraints/journal to GDrive after dream consolidation. Non-optional.
+5. **Cross-project memory**: Searches GDrive for strategies from past projects during planning.
 
 ### Manual Override Commands (Advanced)
 - `/nebuah gdrive pull [project]` — Force download input documents
@@ -198,8 +204,10 @@ Consult these when implementing complex memory operations or debugging the conso
 3. PREFER applying existing strategies over improvising from scratch
 4. UPDATE strategy confidence after each application (success: +0.05, failure: -0.1)
 5. DEPRECATE strategies where `failure_count > success_count * 2`
-6. SYNC strategies to Google Drive after dream consolidation (automatic)
+6. **MANDATORY**: SYNC ALL outputs and strategies to Google Drive — never skip, never silently fail. If registry is missing, bootstrap it. If upload fails, retry once and report.
 7. NEVER upload traces or agent definitions to Google Drive (sensitive data)
 8. NEVER modify cross-project memories in GDrive (read-only access)
 9. AUTO-BOOTSTRAP GDrive on first run — never require manual setup commands
 10. NEVER ask the user more than ONE question about GDrive setup (only for root folder disambiguation)
+11. **MANDATORY**: ALWAYS use `mimeType: "text/plain"` with `disableConversionToGoogleType: true` when uploading ANY file to GDrive. Never use `text/markdown` without this flag. Google auto-converts markdown to Google Docs and corrupts YAML frontmatter.
+12. **MANDATORY**: A task is NOT complete until its outputs are confirmed uploaded to Google Drive. The execution report MUST show GDrive sync results. Zero GDrive uploads when local files exist = FAILURE.

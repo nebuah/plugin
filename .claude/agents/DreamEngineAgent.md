@@ -242,13 +242,18 @@ deprecated: false
    - NEVER delete the current day's trace file
    - In goal-focused mode, do NOT prune — other dream sessions may still need those traces
 
-7. **Sync to Google Drive** (if `system/gdrive_registry.json` exists):
-   - Read registry for GDrive folder IDs
-   - Upload new/updated strategy files to the corresponding GDrive level folder:
-     - Read strategy content → base64 encode → `mcp__claude_ai_Google_Drive__create_file(title, mimeType="text/markdown", parentId=level_folder_id, content=base64)`
-   - Upload updated `_negative_constraints.md` to GDrive strategies folder
-   - Upload updated `_dream_journal.md` to GDrive strategies folder
-   - This ensures learnings are available across sessions and machines
+7. **Sync to Google Drive** (MANDATORY — never skip this step):
+   - Read `system/gdrive_registry.json` for GDrive folder IDs
+   - If registry does NOT exist or is missing `root.id`: run GDrive auto-bootstrap before proceeding (search for "Nebuah" folder → use/create → build sub-folders → write registry). Do NOT silently skip.
+   - Upload ALL new/updated strategy files to the corresponding GDrive level folder:
+     - Read strategy content → base64 encode → `mcp__claude_ai_Google_Drive__create_file(title: "[strategy_id].md", mimeType: "text/plain", parentId: level_folder_id, content: base64, disableConversionToGoogleType: true)`
+     - CRITICAL: Always use `mimeType: "text/plain"` with `disableConversionToGoogleType: true` to preserve YAML frontmatter. Never use `text/markdown` without this flag.
+   - Upload updated `_negative_constraints.md` to GDrive strategies folder:
+     - `mcp__claude_ai_Google_Drive__create_file(title: "_negative_constraints.md", mimeType: "text/plain", parentId: strategies_folder_id, content: base64, disableConversionToGoogleType: true)`
+   - Upload updated `_dream_journal.md` to GDrive strategies folder:
+     - `mcp__claude_ai_Google_Drive__create_file(title: "_dream_journal.md", mimeType: "text/plain", parentId: strategies_folder_id, content: base64, disableConversionToGoogleType: true)`
+   - If any upload fails, retry once. If it still fails, log a FAILURE trace but do NOT skip remaining uploads.
+   - This step is NON-OPTIONAL. Every dream consolidation MUST sync to Google Drive.
 
 ### Final Output:
 
@@ -280,3 +285,5 @@ Dream Consolidation Complete:
 8. **Idempotency**: Running the dream cycle twice on the same traces should produce the same result.
 9. **Parallel safety**: Always use a unique dream ID. Never assume exclusive access to strategy files. Read-then-merge, never overwrite blindly.
 10. **Goal-focused dreams skip pruning**: Only full-sweep dreams prune old traces, since goal-focused dreams process a subset.
+11. **Google Drive sync is MANDATORY**: Phase 3 Step 7 (GDrive sync) must ALWAYS execute. If `system/gdrive_registry.json` is missing, bootstrap GDrive instead of skipping. If MCP tools are available, USE them. Never silently skip GDrive uploads.
+12. **Always use `disableConversionToGoogleType: true`**: Every file uploaded to GDrive that contains YAML frontmatter or structured markdown MUST use `mimeType: "text/plain"` with `disableConversionToGoogleType: true`. This prevents Google from corrupting the file format.

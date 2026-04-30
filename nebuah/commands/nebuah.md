@@ -159,7 +159,7 @@ Note: /loop is session-scoped and will automatically stop after 3 days or when t
 
 ## GOOGLE DRIVE COMMANDS (Manual Overrides)
 
-These commands are available for manual control. In normal operation, GDrive sync is **fully automatic** — the execution workflow handles bootstrap, input download, output upload, and memory sync without user intervention.
+These commands are available for manual control. In normal operation, GDrive sync is **MANDATORY and automatic** — the execution workflow handles bootstrap, input download, output upload, and memory sync without user intervention. **GDrive is NEVER optional** — if the MCP tools are available, they MUST be used for every file operation.
 
 ### `/nebuah gdrive pull [project]`
 
@@ -219,9 +219,9 @@ Steps:
 
 For non-dream goals, execute the standard cognitive pipeline:
 
-### Step 0: GDRIVE AUTO-BOOTSTRAP (Run Once)
+### Step 0: GDRIVE AUTO-BOOTSTRAP (MANDATORY — Run Once)
 
-Before anything else, ensure Google Drive is connected. This step is **idempotent** — it only does work on the very first run, then becomes a no-op.
+Before anything else, ensure Google Drive is connected. This step is **idempotent** — it only does work on the very first run, then becomes a no-op. **This step is NON-OPTIONAL** — if GDrive is not bootstrapped, bootstrap it now. Never skip this step or proceed without GDrive operational.
 
 ```
 1. Check if `system/gdrive_registry.json` exists and has a valid `root.id`:
@@ -345,17 +345,20 @@ For each sub-task in dependency order:
 3. **Log the interaction**: Use the MemoryAnalysisAgent to record the full exchange
 4. **Update trace**: Set outcome based on results
 
-### Step 6: PRODUCE OUTPUT + UPLOAD TO GDRIVE
+### Step 6: PRODUCE OUTPUT + UPLOAD TO GDRIVE (MANDATORY)
 
 1. Ensure all deliverables are saved to `projects/[CaseName]/output/`
-2. **Auto-upload to GDrive**:
+2. **MANDATORY upload to GDrive** (never skip this):
    a. Read `system/gdrive_registry.json` for project output folder ID
-   b. For each file in `projects/[CaseName]/output/`:
-      - Read local file → base64 encode → upload via `mcp__claude_ai_Google_Drive__create_file`
-   c. For each file in `projects/[CaseName]/memory/long_term/`:
-      - Same upload process to GDrive project memory folder
+   b. If registry is missing or project not registered: run GDrive bootstrap (Step 0) + create project folders before uploading. Do NOT skip.
+   c. For each file in `projects/[CaseName]/output/`:
+      - Read local file → base64 encode → upload via `mcp__claude_ai_Google_Drive__create_file(title: "[filename]", mimeType: "text/plain", parentId: output_folder_id, content: base64, disableConversionToGoogleType: true)`
+      - ALWAYS use `disableConversionToGoogleType: true` to preserve file formatting
+   d. For each file in `projects/[CaseName]/memory/long_term/`:
+      - Same upload process to GDrive project memory folder with `disableConversionToGoogleType: true`
+   e. If any upload fails, retry once. Log failures but do NOT skip remaining files.
 3. Provide a clear summary of what was produced
-4. List all files created/modified (local + GDrive)
+4. List all files created/modified (local + GDrive). If GDrive upload count is 0 and there are local files, this is a FAILURE.
 
 ### Step 7: CONSOLIDATE & LEARN (Per-Agent Dream Cycles)
 
@@ -377,12 +380,13 @@ Report consolidation results:
    - Total new strategies learned
    - Total new constraints identified
 
-**Auto-sync learnings to GDrive** (runs automatically after dreams complete):
-1. Read `system/gdrive_registry.json` for strategy folder IDs
+**MANDATORY sync learnings to GDrive** (MUST run after dreams complete — never skip):
+1. Read `system/gdrive_registry.json` for strategy folder IDs. If missing, bootstrap GDrive first.
 2. For each new or updated strategy file:
-   - Read local content → base64 encode → upload to corresponding GDrive level folder
-3. Upload updated `_negative_constraints.md` and `_dream_journal.md` to GDrive strategies folder
-4. This ensures cross-session and cross-machine availability of all learnings
+   - Read local content → base64 encode → `mcp__claude_ai_Google_Drive__create_file(title: "[strat_id].md", mimeType: "text/plain", parentId: level_folder_id, content: base64, disableConversionToGoogleType: true)`
+3. Upload updated `_negative_constraints.md` and `_dream_journal.md` to GDrive strategies folder with `disableConversionToGoogleType: true`
+4. This step is NON-OPTIONAL. All learnings MUST be in Google Drive for cross-session availability.
+5. If GDrive sync fails for any file, report it explicitly in Step 8 as a partial failure.
 
 ### Step 8: REPORT TO USER
 
@@ -470,3 +474,6 @@ Log your execution as L3/L4 traces in `system/memory/traces/trace_YYYY-MM-DD.md`
 10. **ALWAYS create at least 3 agents** — Triad Decomposition (Research, Quality, Integration) is the minimum for every goal
 11. **ALWAYS run at least 3 dream cycles** — one per agent that executed, all in parallel
 12. **NEVER invoke `/loop` directly** — the plugin outputs `/loop` commands for the user to copy-paste
+13. **GOOGLE DRIVE IS MANDATORY** — Every file produced (outputs, strategies, constraints, journal) MUST be uploaded to Google Drive. Never silently skip GDrive. If registry is missing, bootstrap it. If an upload fails, retry and report. A task is NOT complete until GDrive sync succeeds.
+14. **ALWAYS use `disableConversionToGoogleType: true`** — When uploading ANY file to GDrive, use `mimeType: "text/plain"` with `disableConversionToGoogleType: true`. This prevents Google from auto-converting files and corrupting their format (especially YAML frontmatter in strategies).
+15. **NEVER report success without GDrive confirmation** — Step 8 MUST include a "Google Drive" section. If nothing was uploaded to GDrive and files were produced locally, this is a failure that must be flagged.
