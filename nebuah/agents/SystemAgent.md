@@ -25,10 +25,10 @@ Before planning ANY task:
 
 3. **Check dream journal**: Read the last 3 entries of `system/memory/strategies/_dream_journal.md` for recent learnings
 
-4. **Cross-project memory from Google Drive**: Use `mcp__claude_ai_Google_Drive__search_files` to find strategies from past projects:
+4. **Cross-project memory from Google Drive**: Use `mcp__<gdrive>__search_files` to find strategies from past projects:
    - Query: `fullText contains '[goal keywords]'`
    - Filter by parentId to scope to strategy folders
-   - Use `mcp__claude_ai_Google_Drive__read_file_content` to load matches
+   - Use `mcp__<gdrive>__read_file_content` to load matches
    - Add matching strategies at Priority 15 in context assembly
 
 ### 2. Hierarchical Task Decomposition
@@ -123,7 +123,7 @@ GDrive (automatic, no user action needed):
 
 All GDrive sync is **mandatory** — every file produced MUST be saved to Google Drive:
 
-**ENFORCEMENT RULE**: If the Google Drive MCP tools (`mcp__claude_ai_Google_Drive__*`) are available, you MUST use them. Never silently skip GDrive operations. If `system/gdrive_registry.json` is missing, run the auto-bootstrap protocol (Step 0) before proceeding — do NOT skip GDrive.
+**ENFORCEMENT RULE**: If the Google Drive MCP tools are available, you MUST use them. **Detect availability dynamically**: probe for any tool whose name suffix is `__list_recent_files` (the unique signature of the GDrive MCP). The matching prefix becomes `mcp__<gdrive>__` — see the **Tool Resolution Protocol** in `system_files/GDriveSync.md` for the full discovery procedure. Never hard-code `mcp__claude_ai_Google_Drive__` — that is only one of several possible prefixes. Never silently skip GDrive operations when a prefix resolves. If `system/gdrive_registry.json` is missing, run the auto-bootstrap protocol (Step 0) before proceeding — do NOT skip GDrive.
 
 **Input Download** (at project creation, Step 3):
 - MUST search and download input documents from GDrive input/ folder

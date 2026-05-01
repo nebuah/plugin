@@ -169,10 +169,10 @@ Manually download input documents from a project's Google Drive `input/` folder 
 Steps:
 1. Run GDrive Auto-Bootstrap (Step 0) if needed
 2. Read `system/gdrive_registry.json` to get the GDrive project folder ID
-3. Use mcp__claude_ai_Google_Drive__search_files:
+3. Use mcp__<gdrive>__search_files:
    query: "parentId = '[project_input_folder_id]'"
 4. For each file found:
-   a. Use mcp__claude_ai_Google_Drive__read_file_content(fileId) to get text
+   a. Use mcp__<gdrive>__read_file_content(fileId) to get text
    b. Write content to local `projects/[project]/input/[filename].md`
 5. Report: files downloaded, total size, formats converted
 ```
@@ -229,7 +229,7 @@ Before anything else, ensure Google Drive is connected. This step is **idempoten
    - NO → Continue with bootstrap:
 
 2. Search Google Drive for existing "Nebuah" root folder:
-   mcp__claude_ai_Google_Drive__search_files(
+   mcp__<gdrive>__search_files(
      query: "title = 'Nebuah' and mimeType = 'application/vnd.google-apps.folder'"
    )
 
@@ -237,7 +237,7 @@ Before anything else, ensure Google Drive is connected. This step is **idempoten
    a. ONE folder found → Use it as root. No user interaction needed.
    b. MULTIPLE folders found → Ask user ONCE which folder to use (this is the ONLY question ever asked).
    c. NO folder found → Create it:
-      mcp__claude_ai_Google_Drive__create_file(
+      mcp__<gdrive>__create_file(
         title: "Nebuah",
         mimeType: "application/vnd.google-apps.folder"
       )
@@ -259,7 +259,7 @@ Before planning, load the system's accumulated knowledge:
 2. Read `system/memory/strategies/_dream_journal.md` — check last 3 entries for recent learnings
 3. Use `Grep` on `system/memory/strategies/level_*/` for keywords from the user's goal
 4. If matching strategies found (confidence >= 0.5), note them for the plan
-5. **Cross-project memory** (GDrive): Use `mcp__claude_ai_Google_Drive__search_files` with `fullText contains '[goal keywords]'` to find relevant strategies from past projects in Google Drive. Load matches with `read_file_content` and add as Priority 15 context.
+5. **Cross-project memory** (GDrive): Use `mcp__<gdrive>__search_files` with `fullText contains '[goal keywords]'` to find relevant strategies from past projects in Google Drive. Load matches with `read_file_content` and add as Priority 15 context.
 
 ### Step 2: ANALYZE & PLAN (Triad Decomposition)
 
@@ -306,14 +306,14 @@ projects/[CaseName]/
 ```
 1. Read `system/gdrive_registry.json` for projects/ folder ID
 2. Search GDrive for existing project folder:
-   mcp__claude_ai_Google_Drive__search_files(
+   mcp__<gdrive>__search_files(
      query: "title = '[CaseName]' and parentId = '[projects_folder_id]'"
    )
 3. If NOT found → create project folder + sub-folders (input/, output/, memory/long_term/)
 4. If found → reuse existing folder, discover sub-folder IDs
 5. Update `system/gdrive_registry.json` with project folder IDs
 6. Download input documents from GDrive input/ folder:
-   a. mcp__claude_ai_Google_Drive__search_files(query: "parentId = '[input_folder_id]'")
+   a. mcp__<gdrive>__search_files(query: "parentId = '[input_folder_id]'")
    b. For each file: read_file_content(fileId) → Write to local projects/[CaseName]/input/
    c. Supported formats: Google Docs → markdown, PDF → text, .txt, .md, .docx
 7. Report: "[N] input documents downloaded from GDrive" (or "No input documents found in GDrive")
@@ -352,7 +352,7 @@ For each sub-task in dependency order:
    a. Read `system/gdrive_registry.json` for project output folder ID
    b. If registry is missing or project not registered: run GDrive bootstrap (Step 0) + create project folders before uploading. Do NOT skip.
    c. For each file in `projects/[CaseName]/output/`:
-      - Read local file → base64 encode → upload via `mcp__claude_ai_Google_Drive__create_file(title: "[filename]", mimeType: "text/plain", parentId: output_folder_id, content: base64, disableConversionToGoogleType: true)`
+      - Read local file → base64 encode → upload via `mcp__<gdrive>__create_file(title: "[filename]", mimeType: "text/plain", parentId: output_folder_id, content: base64, disableConversionToGoogleType: true)`
       - ALWAYS use `disableConversionToGoogleType: true` to preserve file formatting
    d. For each file in `projects/[CaseName]/memory/long_term/`:
       - Same upload process to GDrive project memory folder with `disableConversionToGoogleType: true`
@@ -383,7 +383,7 @@ Report consolidation results:
 **MANDATORY sync learnings to GDrive** (MUST run after dreams complete — never skip):
 1. Read `system/gdrive_registry.json` for strategy folder IDs. If missing, bootstrap GDrive first.
 2. For each new or updated strategy file:
-   - Read local content → base64 encode → `mcp__claude_ai_Google_Drive__create_file(title: "[strat_id].md", mimeType: "text/plain", parentId: level_folder_id, content: base64, disableConversionToGoogleType: true)`
+   - Read local content → base64 encode → `mcp__<gdrive>__create_file(title: "[strat_id].md", mimeType: "text/plain", parentId: level_folder_id, content: base64, disableConversionToGoogleType: true)`
 3. Upload updated `_negative_constraints.md` and `_dream_journal.md` to GDrive strategies folder with `disableConversionToGoogleType: true`
 4. This step is NON-OPTIONAL. All learnings MUST be in Google Drive for cross-session availability.
 5. If GDrive sync fails for any file, report it explicitly in Step 8 as a partial failure.

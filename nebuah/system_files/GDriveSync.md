@@ -47,9 +47,35 @@ These IDs are pre-provisioned and stored in the GDrive registry:
 | `Nebuah/system/memory/strategies/level_3_tactical/` | `19QsdAF3Huq03Z_waeWQKDuPVQNPdfXbn` |
 | `Nebuah/system/memory/strategies/level_4_reactive/` | `1AmO5060VgUkoXJABtcjFMZ7MYn2TqHKM` |
 
+## Tool Resolution Protocol (Dynamic Discovery)
+
+The Google Drive MCP server is registered under different identifiers depending on the host environment. Common forms observed in the wild:
+
+- `mcp__claude_ai_Google_Drive__<tool>` — claude.ai-hosted connector with the legacy static name
+- `mcp__<server-uuid>__<tool>` — UUID-registered connectors (e.g. `mcp__9d8c7a4e-5e37-4dad-9cf3-4368164e2bca__<tool>`)
+- `mcp__google-drive__<tool>` / `mcp__gdrive__<tool>` — custom MCP servers
+- `mcp__<plugin-namespace>__google_drive__<tool>` — plugin-bundled MCPs
+
+**Do not hard-code the prefix.** Resolve it dynamically on the first GDrive operation of the session and cache the result.
+
+### Discovery procedure
+
+1. Inspect the available tools in the current session. In Claude Code: many tools are deferred — use `ToolSearch` with query `+drive` (or look at the live tool list surfaced by the runtime). In other hosts: enumerate the tool registry.
+2. Find any tool whose **name suffix is `__list_recent_files`**. This suffix is a strong, unique signature of the Google Drive MCP — no other commonly-used MCP server exposes a tool with that exact name.
+3. Extract the prefix: take the tool name and strip the trailing `list_recent_files`. The remainder (ending in `__`) is the GDrive prefix. Call this prefix **`<gdrive>`** (the angle-brackets are notational — substitute the literal resolved prefix at call time).
+4. Validate by checking that the same prefix also exposes `search_files`, `create_file`, `read_file_content`, `download_file_content`, `get_file_metadata`, and `get_file_permissions`. If any are missing, abort GDrive operations and report a partial connector.
+5. Cache `<gdrive>` (e.g. as a working memory note: `gdrive_prefix = "mcp__9d8c7a4e-…__"`) and use it for every subsequent call: `<gdrive>search_files(...)`, `<gdrive>create_file(...)`, etc.
+6. If **no** tool matching `__list_recent_files` is found, the Google Drive connector is **not connected**. Inform the user once and skip GDrive operations until the connector is enabled — do not retry on every step.
+
+### Notation in this document
+
+For readability, the rest of this document — and every other Nebuah agent/command file — writes Google Drive tool calls as `mcp__<gdrive>__<tool_name>` (e.g. `mcp__<gdrive>__search_files`). At runtime, substitute the resolved prefix.
+
+> **Backward-compatibility note**: The literal string `mcp__claude_ai_Google_Drive__` may still appear in older traces, dream-journal entries, or external examples. Treat it as a stand-in for `mcp__<gdrive>__` — always re-resolve dynamically before invoking; do not assume the legacy static name is callable in the current session.
+
 ## MCP Tool Inventory
 
-All Google Drive operations use MCP tools prefixed with `mcp__claude_ai_Google_Drive__`:
+All Google Drive operations use the resolved prefix `mcp__<gdrive>__` (see [Tool Resolution Protocol](#tool-resolution-protocol-dynamic-discovery) above):
 
 | Tool | Purpose | Sync Role |
 |------|---------|-----------|
@@ -57,9 +83,10 @@ All Google Drive operations use MCP tools prefixed with `mcp__claude_ai_Google_D
 | `download_file_content` | Download raw binary content | Pull PDFs, binary files |
 | `read_file_content` | Read natural language representation | Pull Google Docs, Sheets as text |
 | `search_files` | Search with query operators | Cross-project memory queries, file discovery |
-| `list_recent_files` | List recently modified files | Detect changes for sync |
+| `list_recent_files` | List recently modified files | Detect changes for sync; **also used as the discovery probe for prefix resolution** |
 | `get_file_metadata` | Get file metadata (title, modified time, MIME type) | Conflict detection, sync state comparison |
 | `get_file_permissions` | Get file permissions | Verify access before operations |
+| `copy_file` | Copy an existing Drive file | Optional — used for snapshotting |
 
 ## GDrive Registry
 
@@ -150,7 +177,7 @@ Step 0: GDRIVE AUTO-BOOTSTRAP
    └─ NO → Continue:
 
 2. Search Google Drive for existing "Nebuah" root folder:
-   mcp__claude_ai_Google_Drive__search_files(
+   mcp__<gdrive>__search_files(
      query: "title = 'Nebuah' and mimeType = 'application/vnd.google-apps.folder'"
    )
 
@@ -159,7 +186,7 @@ Step 0: GDRIVE AUTO-BOOTSTRAP
    ├─ MULTIPLE folders → Ask user ONCE: "Which folder should Nebuah use?"
    │                      (This is the ONLY user question for GDrive setup)
    └─ NONE found → Create root folder:
-      mcp__claude_ai_Google_Drive__create_file(
+      mcp__<gdrive>__create_file(
         title: "Nebuah",
         mimeType: "application/vnd.google-apps.folder"
       )
@@ -212,7 +239,7 @@ Bash("mkdir -p projects/[ProjectName]/{components/agents,output,memory/{short_te
 
 ```
 # Create project root folder in GDrive
-mcp__claude_ai_Google_Drive__create_file(
+mcp__<gdrive>__create_file(
   title: "[ProjectName]",
   mimeType: "application/vnd.google-apps.folder",
   parentId: "1XQCMY-Hv_2pbJKgKWzyj6LMIQ23ylydl"   # Nebuah/projects/
@@ -220,19 +247,19 @@ mcp__claude_ai_Google_Drive__create_file(
 # Returns: { id: "new_project_folder_id" }
 
 # Create sub-folders
-mcp__claude_ai_Google_Drive__create_file(
+mcp__<gdrive>__create_file(
   title: "input",
   mimeType: "application/vnd.google-apps.folder",
   parentId: "new_project_folder_id"
 )
 
-mcp__claude_ai_Google_Drive__create_file(
+mcp__<gdrive>__create_file(
   title: "output",
   mimeType: "application/vnd.google-apps.folder",
   parentId: "new_project_folder_id"
 )
 
-mcp__claude_ai_Google_Drive__create_file(
+mcp__<gdrive>__create_file(
   title: "memory",
   mimeType: "application/vnd.google-apps.folder",
   parentId: "new_project_folder_id"
@@ -248,7 +275,7 @@ Update `system/gdrive_registry.json` with all new folder IDs.
 
 ```
 # Search for files in the project's input folder
-mcp__claude_ai_Google_Drive__search_files(
+mcp__<gdrive>__search_files(
   query: "parentId = '[input_folder_id]'"
 )
 ```
@@ -262,7 +289,7 @@ For each file found in the GDrive `input/` folder:
 **Step 1: Get metadata to determine MIME type**
 
 ```
-mcp__claude_ai_Google_Drive__get_file_metadata(
+mcp__<gdrive>__get_file_metadata(
   fileId: "[file_id]"
 )
 ```
@@ -282,7 +309,7 @@ mcp__claude_ai_Google_Drive__get_file_metadata(
 **Google Docs download pattern**:
 ```
 # Read Google Doc as natural language text
-mcp__claude_ai_Google_Drive__read_file_content(
+mcp__<gdrive>__read_file_content(
   fileId: "[google_doc_id]"
 )
 # Returns: natural language representation of the document
@@ -294,7 +321,7 @@ Write("projects/[ProjectName]/input/[doc_title].md", content)
 **PDF / binary download pattern**:
 ```
 # Download raw content
-mcp__claude_ai_Google_Drive__download_file_content(
+mcp__<gdrive>__download_file_content(
   fileId: "[pdf_file_id]"
 )
 # Returns: raw binary data
@@ -307,7 +334,7 @@ Bash("echo '[base64_content]' | base64 -d > projects/[ProjectName]/input/[filena
 **Google Sheets download pattern**:
 ```
 # Read spreadsheet as structured text
-mcp__claude_ai_Google_Drive__read_file_content(
+mcp__<gdrive>__read_file_content(
   fileId: "[spreadsheet_id]"
 )
 # Returns: tabular representation
@@ -342,7 +369,7 @@ Bash("base64 -i projects/[ProjectName]/output/[filename].md")
 
 **Step 2: Upload to GDrive**:
 ```
-mcp__claude_ai_Google_Drive__create_file(
+mcp__<gdrive>__create_file(
   title: "[filename].md",
   mimeType: "text/markdown",
   parentId: "[project_output_folder_id]",
@@ -360,7 +387,7 @@ Write("system/gdrive_registry.json", updated_json)
 
 **Creating a Google Doc from Markdown output**:
 ```
-mcp__claude_ai_Google_Drive__create_file(
+mcp__<gdrive>__create_file(
   title: "[Document Title]",
   mimeType: "text/plain",
   parentId: "[project_output_folder_id]",
@@ -392,7 +419,7 @@ Bash("shasum -a 256 [strategy_file] | cut -d ' ' -f 1")
 Bash("base64 -i system/memory/strategies/level_2_architecture/[strategy].md")
 
 # Upload to the matching GDrive folder
-mcp__claude_ai_Google_Drive__create_file(
+mcp__<gdrive>__create_file(
   title: "[strategy].md",
   mimeType: "text/markdown",
   parentId: "[level_2_architecture_folder_id]",    # From registry
@@ -404,7 +431,7 @@ mcp__claude_ai_Google_Drive__create_file(
 ```
 # Upload _negative_constraints.md
 Bash("base64 -i system/memory/strategies/_negative_constraints.md")
-mcp__claude_ai_Google_Drive__create_file(
+mcp__<gdrive>__create_file(
   title: "_negative_constraints.md",
   mimeType: "text/markdown",
   parentId: "1gnWPVkO8c4HBPQjEhzVnBTfpsKIF8GJv",  # strategies/ folder
@@ -413,7 +440,7 @@ mcp__claude_ai_Google_Drive__create_file(
 
 # Upload _dream_journal.md
 Bash("base64 -i system/memory/strategies/_dream_journal.md")
-mcp__claude_ai_Google_Drive__create_file(
+mcp__<gdrive>__create_file(
   title: "_dream_journal.md",
   mimeType: "text/markdown",
   parentId: "1gnWPVkO8c4HBPQjEhzVnBTfpsKIF8GJv",
@@ -430,7 +457,7 @@ Triggered before a task (optional) or via `gdrive pull`.
 **Step 1: List strategies in each GDrive level folder**:
 ```
 # For each level folder
-mcp__claude_ai_Google_Drive__search_files(
+mcp__<gdrive>__search_files(
   query: "parentId = '1qbcLMQzfjaEv69YiCqNx9EtbZzk3qJvt'"
 )
 # Repeat for level_2, level_3, level_4 folder IDs
@@ -439,7 +466,7 @@ mcp__claude_ai_Google_Drive__search_files(
 **Step 2: Compare with local files**:
 ```
 # For each GDrive file, check if local version exists
-mcp__claude_ai_Google_Drive__get_file_metadata(
+mcp__<gdrive>__get_file_metadata(
   fileId: "[strategy_file_id]"
 )
 # Compare modifiedTime with registry last_synced
@@ -447,7 +474,7 @@ mcp__claude_ai_Google_Drive__get_file_metadata(
 
 **Step 3: Download newer files**:
 ```
-mcp__claude_ai_Google_Drive__read_file_content(
+mcp__<gdrive>__read_file_content(
   fileId: "[strategy_file_id]"
 )
 # Write to local path
@@ -457,11 +484,11 @@ Write("system/memory/strategies/level_[N]_[name]/[strategy].md", content)
 **Step 4: Download constraints and dream journal**:
 ```
 # Search for constraints file
-mcp__claude_ai_Google_Drive__search_files(
+mcp__<gdrive>__search_files(
   query: "title = '_negative_constraints.md' and parentId = '1gnWPVkO8c4HBPQjEhzVnBTfpsKIF8GJv'"
 )
 # Download and write locally
-mcp__claude_ai_Google_Drive__read_file_content(fileId: "[constraints_file_id]")
+mcp__<gdrive>__read_file_content(fileId: "[constraints_file_id]")
 Write("system/memory/strategies/_negative_constraints.md", content)
 
 # Repeat for _dream_journal.md
@@ -477,7 +504,7 @@ Glob(pattern: "projects/[ProjectName]/memory/long_term/*.md")
 
 # For each file, encode and upload
 Bash("base64 -i projects/[ProjectName]/memory/long_term/[file].md")
-mcp__claude_ai_Google_Drive__create_file(
+mcp__<gdrive>__create_file(
   title: "[file].md",
   mimeType: "text/markdown",
   parentId: "[project_long_term_folder_id]",
@@ -495,13 +522,13 @@ When an agent needs strategies beyond the local filesystem (e.g., working on a n
 
 ```
 # Search across all strategies for relevant keywords
-mcp__claude_ai_Google_Drive__search_files(
+mcp__<gdrive>__search_files(
   query: "fullText contains 'indemnification' and parentId = '1gnWPVkO8c4HBPQjEhzVnBTfpsKIF8GJv'"
 )
 # Returns: list of matching strategy files
 
 # Read each match
-mcp__claude_ai_Google_Drive__read_file_content(
+mcp__<gdrive>__read_file_content(
   fileId: "[matching_strategy_id]"
 )
 # Parse YAML frontmatter, score, and inject into agent context
@@ -513,7 +540,7 @@ When searching for strategies at a specific hierarchy level:
 
 ```
 # Search only in level_2_architecture
-mcp__claude_ai_Google_Drive__search_files(
+mcp__<gdrive>__search_files(
   query: "fullText contains 'regulatory compliance' and parentId = '1YIF2iScp285otUSckU2PhmK_MRKezYQI'"
 )
 ```
@@ -524,18 +551,18 @@ When seeking learnings from a specific past project:
 
 ```
 # First, find the project folder
-mcp__claude_ai_Google_Drive__search_files(
+mcp__<gdrive>__search_files(
   query: "title = '[PastProjectName]' and parentId = '1XQCMY-Hv_2pbJKgKWzyj6LMIQ23ylydl'"
 )
 # Returns: project folder ID
 
 # Then search its long_term memory
-mcp__claude_ai_Google_Drive__search_files(
+mcp__<gdrive>__search_files(
   query: "parentId = '[past_project_long_term_folder_id]'"
 )
 
 # Read relevant memories
-mcp__claude_ai_Google_Drive__read_file_content(
+mcp__<gdrive>__read_file_content(
   fileId: "[memory_file_id]"
 )
 ```
@@ -545,7 +572,7 @@ mcp__claude_ai_Google_Drive__read_file_content(
 When checking what has changed across the entire Nebuah Drive since last sync:
 
 ```
-mcp__claude_ai_Google_Drive__list_recent_files(
+mcp__<gdrive>__list_recent_files(
   orderBy: "lastModified",
   pageSize: 20
 )
@@ -574,7 +601,7 @@ Downloads input documents from GDrive to local project directory.
 **Workflow**:
 ```
 1. Read("system/gdrive_registry.json") → get project's input folder ID
-2. mcp__claude_ai_Google_Drive__search_files(query: "parentId = '[input_folder_id]'")
+2. mcp__<gdrive>__search_files(query: "parentId = '[input_folder_id]'")
 3. For each file:
    a. get_file_metadata → determine MIME type
    b. download_file_content or read_file_content → get content
@@ -657,7 +684,7 @@ Display current synchronization state.
    - Pending uploads: [count]
    - Pending downloads: [unknown until GDrive is queried]
 4. Optionally query GDrive for remote changes:
-   mcp__claude_ai_Google_Drive__list_recent_files(orderBy: "lastModified", pageSize: 10)
+   mcp__<gdrive>__list_recent_files(orderBy: "lastModified", pageSize: 10)
    - Compare with registry to identify remote changes
 ```
 
@@ -689,7 +716,7 @@ Display current synchronization state.
 Strategies MUST be uploaded with `disableConversionToGoogleType: true` to preserve YAML frontmatter:
 
 ```
-mcp__claude_ai_Google_Drive__create_file(
+mcp__<gdrive>__create_file(
   title: "strat_2_regulatory-framework.md",
   mimeType: "text/plain",
   parentId: "[level_2_folder_id]",
@@ -729,7 +756,7 @@ When `_negative_constraints.md` has conflicts:
 
 ```
 1. Download GDrive version:
-   mcp__claude_ai_Google_Drive__read_file_content(fileId: "[constraints_id]")
+   mcp__<gdrive>__read_file_content(fileId: "[constraints_id]")
 
 2. Read local version:
    Read("system/memory/strategies/_negative_constraints.md")
@@ -747,7 +774,7 @@ When `_negative_constraints.md` has conflicts:
 
 6. Upload merged result to GDrive:
    Bash("base64 -i system/memory/strategies/_negative_constraints.md")
-   mcp__claude_ai_Google_Drive__create_file(
+   mcp__<gdrive>__create_file(
      title: "_negative_constraints.md",
      mimeType: "text/plain",
      parentId: "1gnWPVkO8c4HBPQjEhzVnBTfpsKIF8GJv",
@@ -776,7 +803,7 @@ When a GDrive operation fails:
 
 ```
 1. Log the failure in the current trace:
-   [MCP: mcp__claude_ai_Google_Drive__create_file] -> FAILED: [error message]
+   [MCP: mcp__<gdrive>__create_file] -> FAILED: [error message]
 
 2. If the operation is part of a batch:
    - Continue with remaining operations
@@ -925,7 +952,7 @@ Since the MCP tools do not support "update in place", prevent duplicates before 
 
 ```
 # Before creating a file, search for existing file with same title in same folder
-mcp__claude_ai_Google_Drive__search_files(
+mcp__<gdrive>__search_files(
   query: "title = '[filename]' and parentId = '[folder_id]'"
 )
 
