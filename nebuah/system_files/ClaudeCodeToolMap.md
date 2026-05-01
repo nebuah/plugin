@@ -29,13 +29,13 @@ Maps Nebuah cognitive operations to Claude Code's native tool inventory. Updated
 ### Google Drive Operations (MCP)
 | Tool | Purpose | Trace Level |
 |------|---------|-------------|
-| `mcp__claude_ai_Google_Drive__create_file` | Upload files to GDrive (base64 content), create GDrive folders and native docs | L3-L4 |
-| `mcp__claude_ai_Google_Drive__download_file_content` | Download raw file content from GDrive | L3-L4 |
-| `mcp__claude_ai_Google_Drive__read_file_content` | Read natural language representation of GDrive files | L4 |
-| `mcp__claude_ai_Google_Drive__search_files` | Search GDrive with structured queries (title, fullText, mimeType, parentId) | L4 |
-| `mcp__claude_ai_Google_Drive__list_recent_files` | List recently modified files | L4 |
-| `mcp__claude_ai_Google_Drive__get_file_metadata` | Get file metadata (size, owner, dates) | L4 |
-| `mcp__claude_ai_Google_Drive__get_file_permissions` | Get file sharing permissions | L4 |
+| `mcp__<gdrive>__create_file` | Upload files to GDrive (base64 content), create GDrive folders and native docs | L3-L4 |
+| `mcp__<gdrive>__download_file_content` | Download raw file content from GDrive | L3-L4 |
+| `mcp__<gdrive>__read_file_content` | Read natural language representation of GDrive files | L4 |
+| `mcp__<gdrive>__search_files` | Search GDrive with structured queries (title, fullText, mimeType, parentId) | L4 |
+| `mcp__<gdrive>__list_recent_files` | List recently modified files | L4 |
+| `mcp__<gdrive>__get_file_metadata` | Get file metadata (size, owner, dates) | L4 |
+| `mcp__<gdrive>__get_file_permissions` | Get file sharing permissions | L4 |
 
 ## Nebuah Operation Mappings
 
@@ -116,7 +116,7 @@ Pattern:
 ### 9. GDrive Input Download
 ```
 Operation: Download project input documents from Google Drive to local
-Tools: mcp__claude_ai_Google_Drive__search_files → mcp__claude_ai_Google_Drive__read_file_content → Write
+Tools: mcp__<gdrive>__search_files → mcp__<gdrive>__read_file_content → Write
 Pattern:
   1. search_files(query="parentId = '[input_folder_id]'") → list of files
   2. For each file: read_file_content(fileId) → text content
@@ -126,7 +126,7 @@ Pattern:
 ### 10. GDrive Output Upload
 ```
 Operation: Upload project outputs to Google Drive
-Tools: Read → mcp__claude_ai_Google_Drive__create_file
+Tools: Read → mcp__<gdrive>__create_file
 Pattern:
   1. Read(local_output_file) → content
   2. Base64 encode the content
@@ -136,7 +136,7 @@ Pattern:
 ### 11. GDrive Memory Sync
 ```
 Operation: Sync strategies between local and Google Drive
-Tools: Glob → Read → mcp__claude_ai_Google_Drive__search_files → mcp__claude_ai_Google_Drive__create_file
+Tools: Glob → Read → mcp__<gdrive>__search_files → mcp__<gdrive>__create_file
 Pattern:
   1. Glob("system/memory/strategies/level_*/*.md") → local strategies
   2. search_files(query="parentId = '[gdrive_strategies_id]'") → remote strategies
@@ -146,7 +146,7 @@ Pattern:
 ### 12. Cross-Project Memory Query
 ```
 Operation: Search past project memories in Google Drive
-Tools: mcp__claude_ai_Google_Drive__search_files → mcp__claude_ai_Google_Drive__read_file_content
+Tools: mcp__<gdrive>__search_files → mcp__<gdrive>__read_file_content
 Pattern:
   1. search_files(query="fullText contains '[keyword]' and parentId = '[strategies_folder_id]'")
   2. read_file_content(matching_file_ids) → strategy text

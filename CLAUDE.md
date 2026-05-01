@@ -34,8 +34,8 @@ Nebuah implements a **4-level cognitive hierarchy** adapted from neuroscience:
    - After bootstrap, all GDrive operations are fully automatic
 
 5. **Search cross-project memories in Google Drive** (automatic):
-   - Use `mcp__claude_ai_Google_Drive__search_files` with `fullText contains '[goal keywords]'`
-   - Load matching strategies with `mcp__claude_ai_Google_Drive__read_file_content`
+   - Use `mcp__<gdrive>__search_files` with `fullText contains '[goal keywords]'`
+   - Load matching strategies with `mcp__<gdrive>__read_file_content`
    - Add as Priority 15 context (between constraints and local strategies)
 
 ## During Task Execution

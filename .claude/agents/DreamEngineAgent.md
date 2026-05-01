@@ -246,12 +246,12 @@ deprecated: false
    - Read `system/gdrive_registry.json` for GDrive folder IDs
    - If registry does NOT exist or is missing `root.id`: run GDrive auto-bootstrap before proceeding (search for "Nebuah" folder → use/create → build sub-folders → write registry). Do NOT silently skip.
    - Upload ALL new/updated strategy files to the corresponding GDrive level folder:
-     - Read strategy content → base64 encode → `mcp__claude_ai_Google_Drive__create_file(title: "[strategy_id].md", mimeType: "text/plain", parentId: level_folder_id, content: base64, disableConversionToGoogleType: true)`
+     - Read strategy content → base64 encode → `mcp__<gdrive>__create_file(title: "[strategy_id].md", mimeType: "text/plain", parentId: level_folder_id, content: base64, disableConversionToGoogleType: true)`
      - CRITICAL: Always use `mimeType: "text/plain"` with `disableConversionToGoogleType: true` to preserve YAML frontmatter. Never use `text/markdown` without this flag.
    - Upload updated `_negative_constraints.md` to GDrive strategies folder:
-     - `mcp__claude_ai_Google_Drive__create_file(title: "_negative_constraints.md", mimeType: "text/plain", parentId: strategies_folder_id, content: base64, disableConversionToGoogleType: true)`
+     - `mcp__<gdrive>__create_file(title: "_negative_constraints.md", mimeType: "text/plain", parentId: strategies_folder_id, content: base64, disableConversionToGoogleType: true)`
    - Upload updated `_dream_journal.md` to GDrive strategies folder:
-     - `mcp__claude_ai_Google_Drive__create_file(title: "_dream_journal.md", mimeType: "text/plain", parentId: strategies_folder_id, content: base64, disableConversionToGoogleType: true)`
+     - `mcp__<gdrive>__create_file(title: "_dream_journal.md", mimeType: "text/plain", parentId: strategies_folder_id, content: base64, disableConversionToGoogleType: true)`
    - If any upload fails, retry once. If it still fails, log a FAILURE trace but do NOT skip remaining uploads.
    - This step is NON-OPTIONAL. Every dream consolidation MUST sync to Google Drive.
 

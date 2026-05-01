@@ -169,7 +169,7 @@ Sub-agents and skills can access memories from past projects stored in Google Dr
 
 ### Query Pattern
 ```
-1. Use mcp__claude_ai_Google_Drive__search_files with:
+1. Use mcp__<gdrive>__search_files with:
    query: "fullText contains '[keyword]'"
    — Searches across all project memories in GDrive
 
@@ -177,7 +177,7 @@ Sub-agents and skills can access memories from past projects stored in Google Dr
    - strategies/: for reusable patterns
    - projects/[name]/memory/: for project-specific learnings
 
-3. Use mcp__claude_ai_Google_Drive__read_file_content to load matches
+3. Use mcp__<gdrive>__read_file_content to load matches
 
 4. Score using the standard composite scoring algorithm:
    composite = (trigger_score * 0.5) + (confidence * 0.3) + (success_rate * 0.2)
