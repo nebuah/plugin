@@ -18,6 +18,8 @@ Nebuah/                                    # Root folder (shared)
 │   └── [ProjectName]/
 │       ├── input/                         # Source documents (Google Docs, PDF, .txt, .md)
 │       ├── output/                        # Generated deliverables
+│       ├── components/
+│       │   └── agents/                    # Dynamic specialized agent definitions (synced)
 │       └── memory/
 │           └── long_term/                 # Project-specific consolidated learnings
 └── system/                                # Shared kernel memory
@@ -900,7 +902,7 @@ GDrive operations should be logged in traces at L4 level:
 ### Sensitive Data Handling
 
 1. **NEVER upload trace files** to GDrive. Traces contain raw execution details and may include sensitive client data. Only consolidated strategies (which are abstracted) are synced.
-2. **NEVER upload agent definition files** to GDrive. Agent prompts may contain case-specific context.
+2. **Upload agent definition files** to GDrive for cross-session and cross-project reuse. Agent definitions may contain case-specific context; access is controlled by GDrive folder permissions. This enables recovering proven agent configurations when resuming a project or starting a similar one.
 3. **Project inputs stay in GDrive** — downloaded locally for processing but the GDrive copy is the canonical source.
 4. **Strategy files are safe to sync** — they contain abstracted patterns, not case-specific data.
 
@@ -917,8 +919,104 @@ GDrive operations should be logged in traces at L4 level:
 | `projects/[name]/output/` | Yes | Push only |
 | `projects/[name]/memory/long_term/` | Yes | Push only |
 | `projects/[name]/memory/short_term/` | No | Never (sensitive) |
-| `projects/[name]/components/agents/` | No | Never (sensitive) |
+| `projects/[name]/components/agents/` | Yes | Bidirectional |
 | `system/gdrive_registry.json` | No | Local only |
+
+## Agent Definition Upload Protocol
+
+Agent definitions created during task execution (`projects/[name]/components/agents/*.md`) MUST be uploaded to Google Drive for cross-session and cross-project reuse.
+
+### Upload Workflow (Step 4.5 — after agent creation)
+
+```
+For each agent file in projects/[CaseName]/components/agents/:
+1. Search for existing file with same title in GDrive agents folder:
+   mcp__claude_ai_Google_Drive__search_files(
+     query: "title = '[AgentName].md' and parentId = '[components_agents_folder_id]'"
+   )
+2. If found: skip upload (agent already exists in GDrive)
+3. If not found: upload new agent definition:
+   mcp__claude_ai_Google_Drive__create_file(
+     title: "[AgentName].md",
+     mimeType: "text/plain",
+     parentId: "[components_agents_folder_id]",
+     content: "[base64_encoded_agent_definition]",
+     disableConversionToGoogleType: true
+   )
+4. Update gdrive_registry.json with agent file ID (optional — folder-level tracking suffices)
+```
+
+### Download Workflow (Step 3 — project recovery)
+
+When creating or loading a project:
+```
+1. Search GDrive for existing components/agents/ folder under the project:
+   mcp__claude_ai_Google_Drive__search_files(
+     query: "title = 'agents' and parentId = '[project_components_folder_id]'"
+   )
+2. If found: list all files in the folder:
+   mcp__claude_ai_Google_Drive__search_files(
+     query: "parentId = '[agents_folder_id]'"
+   )
+3. For each agent file:
+   a. mcp__claude_ai_Google_Drive__read_file_content(fileId)
+   b. Write to local projects/[CaseName]/components/agents/[filename]
+4. Log: "[N] agent definitions recovered from GDrive"
+```
+
+## Cross-Project Agent Discovery Protocol
+
+Before creating new agents (Step 4), the system searches GDrive for proven agent configurations from past projects that match the current goal.
+
+### Discovery Workflow (Step 1.6 — during Memory Query)
+
+```
+1. List all project folders in GDrive:
+   mcp__claude_ai_Google_Drive__search_files(
+     query: "mimeType = 'application/vnd.google-apps.folder' and parentId = '[projects_folder_id]'"
+   )
+
+2. For each past project folder, find its components/agents/ subfolder:
+   mcp__claude_ai_Google_Drive__search_files(
+     query: "title = 'agents' and mimeType = 'application/vnd.google-apps.folder' and parentId = '[project_components_id]'"
+   )
+   Note: To find components/, first search:
+   mcp__claude_ai_Google_Drive__search_files(
+     query: "title = 'components' and mimeType = 'application/vnd.google-apps.folder' and parentId = '[project_folder_id]'"
+   )
+
+3. For each agents/ folder found, list agent files:
+   mcp__claude_ai_Google_Drive__search_files(
+     query: "parentId = '[agents_folder_id]'"
+   )
+
+4. For each agent file, read its content:
+   mcp__claude_ai_Google_Drive__read_file_content(fileId)
+
+5. Parse YAML frontmatter for: name, capabilities, tools, type
+
+6. Score relevance to current goal:
+   - Match capabilities keywords against goal keywords
+   - Match agent type against required Triad role (Research, Quality, Integration)
+   - Prefer agents from projects with similar domain (e.g., "contract" → contract projects)
+
+7. Store top-scoring agents as "reuse candidates" for Step 4
+```
+
+### Reuse Protocol (Step 4 — agent creation with reuse)
+
+```
+For each sub-task in the Triad Decomposition:
+1. Check reuse candidates from Step 1.6
+2. Check agents recovered from current project (Step 3)
+3. If a matching agent found:
+   a. Load its definition as a base template
+   b. Update: project name, parent trace ID, injected strategies/constraints
+   c. Preserve: capabilities, tools, output format, proven patterns
+   d. Write updated definition to local components/agents/
+   e. Log: "Reused agent [name] from [source project] as template"
+4. If no match: create agent from scratch (existing Step 4 behavior)
+```
 
 ## Initialization Bootstrap
 

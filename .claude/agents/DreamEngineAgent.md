@@ -143,13 +143,25 @@ Where:
       - Add new `source_traces`
       - If the sequence had a different approach that worked better, note it as an alternative
 
-   d. **If NO matching strategy → CREATE NEW**:
-      - Generate a strategy ID: `strat_[level]_[descriptive-slug]`
-      - Set `version: 1`, `confidence: 0.5`, `success_count: 1`
-      - Extract `trigger_goals` from the sequence's goal (3-5 keywords)
-      - Extract `preconditions` (what was true before execution started)
-      - Extract ordered `steps` (the essential action sequence)
-      - Extract `negative_constraints` from any partial failures within the sequence
+   d. **If NO matching strategy → APPLY ANTI-OVERFITTING GATE → CREATE NEW**:
+      - Before creating, apply the anti-overfitting gate (from SysctlProtocol):
+        ```
+        "If the specific tasks that caused these successes
+         were removed from the workload entirely,
+         would this strategy still make the system better?"
+
+        YES → The strategy is generically beneficial → CREATE it
+        NO  → The strategy is overfitting to specific cases → SKIP it
+        ```
+      - If APPROVED: create the strategy:
+        - Generate a strategy ID: `strat_[level]_[descriptive-slug]`
+        - Set `version: 1`, `confidence: 0.5`, `success_count: 1`
+        - Extract `trigger_goals` from the sequence's goal (3-5 keywords)
+        - Extract `preconditions` (what was true before execution started)
+        - Extract ordered `steps` (the essential action sequence)
+        - Extract `negative_constraints` from any partial failures within the sequence
+      - If REJECTED: log in dream journal as "overfitting candidate skipped: [reason]"
+      - When uncertain, lean toward REJECT — false negatives are safer than memory bloat
 
 4. **Deprecation check**: For ALL existing strategies (not just matched ones):
    - If `failure_count > success_count * 2` AND `success_count >= 3`: set `deprecated: true`

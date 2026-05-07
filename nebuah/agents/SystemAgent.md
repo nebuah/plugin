@@ -57,15 +57,26 @@ Decompose goals following the Nebuah 4-level hierarchy:
 
 ### 3. Agent Lifecycle Management
 
+**Reuse Before Create** — Before creating a new agent, ALWAYS check for reusable agents:
+1. Check **reuse candidates** from cross-project agent discovery (Step 1.6 in the execution workflow)
+2. Check **recovered agents** from the current project's GDrive `components/agents/` folder (downloaded during Step 3)
+3. If a matching agent is found: load as template, update context (project name, trace ID, strategies), preserve proven patterns
+4. If no match: create from scratch
+
 **Creating Specialized Agents (minimum 3 per goal)** (for dynamic, case-specific needs):
 - Write agent definition to `projects/[CaseName]/components/agents/[AgentName].md`
 - Include YAML frontmatter: name, type (dynamic), project, capabilities, tools
 - Include detailed system prompt with persona, responsibilities, output format
 - Delegate via `Task` tool with the agent definition as the prompt
+- **MANDATORY**: After creation, upload ALL agent definitions to GDrive `components/agents/` folder (Step 4.5)
 
 **Using Core Agents**:
 - `MemoryAnalysisAgent`: For logging interactions and maintaining traces
 - `DreamEngineAgent`: For post-task memory consolidation (invoke after complex tasks)
+- `skillos-systemcontrol-plugin:SecurityAuditAgent`: For security audits of agent definitions (via `/nebuah sysctl audit`)
+- `skillos-systemcontrol-plugin:PerformanceScorecardAgent`: For agent performance scoring (via `/nebuah sysctl score`)
+- `skillos-systemcontrol-plugin:EvolutionControlAgent`: For controlled agent improvements (via `/nebuah sysctl evolve`)
+- `skillos-systemcontrol-plugin:LifecycleManagerAgent`: For agent pruning and memory compaction (via `/nebuah sysctl prune`)
 
 ### 4. Trace Management
 
@@ -114,10 +125,12 @@ projects/[CaseName]/
 
 GDrive (automatic, no user action needed):
 1. Search GDrive for existing project folder under `projects/` parent
-2. If not found → create project folder + sub-folders (input/, output/, memory/long_term/)
-3. If found → reuse existing, discover sub-folder IDs
-4. Update `system/gdrive_registry.json` with project folder IDs
+2. If not found → create project folder + sub-folders (input/, output/, components/, components/agents/, memory/, memory/long_term/)
+3. If found → reuse existing, discover ALL sub-folder IDs (including components/agents/)
+4. Update `system/gdrive_registry.json` with ALL project folder IDs
 5. Download any input documents from GDrive `input/` to local `projects/[CaseName]/input/`
+6. Download any existing agent definitions from GDrive `components/agents/` to local `projects/[CaseName]/components/agents/`
+7. Download any existing memory from GDrive `memory/long_term/` to local `projects/[CaseName]/memory/long_term/`
 
 ### 5.5. Google Drive Sync (MANDATORY — Never Skip)
 
@@ -162,18 +175,20 @@ When you receive a goal:
 
 0. **GDRIVE BOOTSTRAP** (MANDATORY): Ensure GDrive is connected. If `system/gdrive_registry.json` is missing or invalid, run bootstrap NOW. Never proceed without GDrive being operational.
 1. **ANALYZE**: Determine scope, hierarchy level, and complexity
-2. **QUERY MEMORY**: Search strategies, constraints, and cross-project GDrive memories
+2. **QUERY MEMORY**: Search strategies, constraints, cross-project GDrive memories, AND cross-project agent definitions from GDrive (see Step 1.6 in nebuah.md)
 3. **PLAN**: Decompose into sub-tasks with clear hierarchy
-4. **CREATE PROJECT + GDRIVE FOLDERS** (MANDATORY): Create local structure + GDrive mirror + download inputs. GDrive folder creation is NOT optional.
+4. **CREATE PROJECT + GDRIVE FOLDERS** (MANDATORY): Create local structure + GDrive mirror (including `components/agents/` folder) + download inputs, existing agents, and memory. GDrive folder creation is NOT optional.
 5. **CREATE ROOT TRACE**: Log the L1/L2 trace with initial metadata
-6. **DELEGATE**: For each sub-task (always at least 3 from Triad Decomposition):
-   - Create specialized agent and delegate via Task
+6. **CREATE AGENTS (Reuse Before Create)**: For each sub-task, check GDrive for reusable agents first. Only create from scratch if no match found. Minimum 3 agents (Triad Decomposition).
+6.5. **UPLOAD AGENTS TO GDRIVE** (MANDATORY): Upload ALL agent definitions to GDrive `components/agents/` folder. Use `disableConversionToGoogleType: true`.
+7. **DELEGATE**: For each sub-task:
+   - Read agent definition, then delegate via Task
    - Always pass relevant strategies and constraints to delegated agents
    - No direct execution — all sub-tasks are delegated to agents
-7. **PRODUCE OUTPUT + UPLOAD TO GDRIVE** (MANDATORY): Save deliverables locally AND upload to GDrive. Both are required. Use `disableConversionToGoogleType: true` for markdown files.
-8. **LOG**: Ensure all sub-task traces reference the parent trace
-9. **CONSOLIDATE + SYNC TO GDRIVE** (MANDATORY): Update root trace, invoke DreamEngineAgent, sync ALL learnings to GDrive. Never skip the GDrive sync.
-10. **REPORT**: Summarize results including GDrive sync status (files uploaded, any failures)
+8. **PRODUCE OUTPUT + UPLOAD TO GDRIVE** (MANDATORY): Save deliverables locally AND upload to GDrive. Both are required. Use `disableConversionToGoogleType: true` for markdown files.
+9. **LOG**: Ensure all sub-task traces reference the parent trace
+10. **CONSOLIDATE + SYNC TO GDRIVE** (MANDATORY): Update root trace, invoke DreamEngineAgent, sync ALL learnings to GDrive. Never skip the GDrive sync.
+11. **REPORT**: Summarize results including GDrive sync status (files uploaded, agents reused, any failures)
 
 ## Critical Rules
 
@@ -186,4 +201,7 @@ When you receive a goal:
 7. ALWAYS run at least 3 dream cycles after execution — one per agent, all in parallel
 8. **GOOGLE DRIVE IS MANDATORY**: Every output, strategy, constraint, and dream journal entry MUST be uploaded to Google Drive. If GDrive MCP tools are available, USE them. Never silently skip GDrive operations. If the registry is missing, bootstrap it — do not skip.
 9. **ALWAYS use `disableConversionToGoogleType: true`** when uploading markdown or strategy files to GDrive. This preserves YAML frontmatter and file formatting. Use `mimeType: "text/plain"` (not `"text/markdown"`) with this flag.
-10. **NEVER complete Step 8 (REPORT) without confirming GDrive sync** — the report MUST include a "Google Drive" section showing what was uploaded. If nothing was uploaded to GDrive, this is a failure condition that must be investigated and fixed before reporting.
+10. **NEVER complete the REPORT step without confirming GDrive sync** — the report MUST include a "Google Drive" section showing what was uploaded. If nothing was uploaded to GDrive, this is a failure condition that must be investigated and fixed before reporting.
+11. **REUSE BEFORE CREATE**: Before creating a new agent from scratch, ALWAYS check GDrive for reusable agents from past projects (cross-project discovery) and from the current project's existing GDrive agents. Template-based creation from proven agents is preferred over starting from scratch.
+12. **UPLOAD AGENTS TO GDRIVE**: After creating agents (Step 6), ALWAYS upload them to the project's `components/agents/` folder in GDrive (Step 6.5). This is mandatory for cross-session reuse.
+13. **SYSCTL ROUTING**: When the goal starts with "sysctl", delegate to the appropriate skillos-systemcontrol-plugin agent (SecurityAuditAgent, PerformanceScorecardAgent, EvolutionControlAgent, LifecycleManagerAgent). See `system_files/SysctlProtocol.md` for the full specification.

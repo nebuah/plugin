@@ -149,6 +149,19 @@ Every `/nebuah [goal]` invocation **always creates at least 3 agents** along the
 
 For complex goals, additional agents are created beyond the minimum 3. After execution, **one dream cycle per agent** runs in parallel (minimum 3), each filtered by that agent's keywords.
 
+### System Control Mode (Sysctl)
+
+`/nebuah sysctl [mode] [project]` invokes the system control plane for project maintenance. Delegates to skillos-systemcontrol-plugin agents:
+
+- `/nebuah sysctl audit [project]` → Security scan of agent definitions
+- `/nebuah sysctl score [project]` → Performance scoring with 7-type failure taxonomy
+- `/nebuah sysctl evolve [project]` → Controlled improvements with anti-overfitting gate
+- `/nebuah sysctl prune [project]` → Dead agent detection and memory compaction
+- `/nebuah sysctl full [project]` → All modes in sequence
+- `/nebuah sysctl health` → Health report across all projects
+
+All sysctl reports are uploaded to GDrive. See `nebuah/system_files/SysctlProtocol.md` for the full specification.
+
 ### Loop Mode (Recurring Dreams)
 
 `/nebuah loop` generates `/loop` commands for the user to copy-paste (the plugin cannot invoke `/loop` directly since it's a built-in CLI command):
@@ -193,9 +206,10 @@ Detailed specifications for system internals are in `nebuah/system_files/`:
 - **MemoryTraceManager.md**: Trace schema, lifecycle, and hierarchy rules
 - **QueryMemoryTool.md**: Strategy scoring algorithm and query patterns
 - **ClaudeCodeToolMap.md**: Tool-to-operation mapping and workflow patterns
-- **GDriveSync.md**: Google Drive integration, sync protocols, and cross-project memory access
+- **GDriveSync.md**: Google Drive integration, sync protocols, cross-project memory access, and agent definition upload protocol
+- **SysctlProtocol.md**: System control — security audits, performance scoring, evolution with anti-overfitting gate, lifecycle management, and memory compaction
 
-Consult these when implementing complex memory operations or debugging the consolidation pipeline.
+Consult these when implementing complex memory operations, debugging the consolidation pipeline, or performing system maintenance.
 
 ## Important Rules
 

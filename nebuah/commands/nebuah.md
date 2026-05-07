@@ -215,9 +215,74 @@ Steps:
 5. Report any unsynced changes
 ```
 
+## SYSCTL COMMANDS (System Control)
+
+If the user's goal starts with `sysctl`, this is a system maintenance request — not a task execution. Parse the sysctl mode and delegate to the appropriate skillos-systemcontrol-plugin agent.
+
+**Core Reference**: Read `system_files/SysctlProtocol.md` for the full specification.
+
+### `/nebuah sysctl audit [project]`
+
+Security scan of agent definitions for the given project. Delegates to `skillos-systemcontrol-plugin:SecurityAuditAgent`.
+
+```
+Task(subagent_type="skillos-systemcontrol-plugin:SecurityAuditAgent", prompt="Audit security of all agents in projects/[project]/components/agents/. Scan for prompt injection, unrestricted execution, path traversal, privilege escalation, and sensitive data exposure. Produce audit_report.md.")
+```
+
+Output: `projects/[project]/output/sysctl/audit_report_YYYYMMDD.md` → MUST upload to GDrive.
+
+### `/nebuah sysctl score [project]`
+
+Score all agents by trace outcomes using the 7-type failure taxonomy. Delegates to `skillos-systemcontrol-plugin:PerformanceScorecardAgent`.
+
+```
+Task(subagent_type="skillos-systemcontrol-plugin:PerformanceScorecardAgent", prompt="Score all agents in projects/[project]/ by analyzing traces in system/memory/traces/. Classify failures using the 7-type taxonomy. Produce scorecard.md with S/A/B/C tier rankings.")
+```
+
+Output: `projects/[project]/output/sysctl/scorecard_YYYYMMDD.md` → MUST upload to GDrive.
+
+### `/nebuah sysctl evolve [project]`
+
+Propose minimal-surface improvements for underperforming agents. Delegates to `skillos-systemcontrol-plugin:EvolutionControlAgent`.
+
+```
+Task(subagent_type="skillos-systemcontrol-plugin:EvolutionControlAgent", prompt="Propose improvements for agents scoring below 0.6 in projects/[project]/. Apply the anti-overfitting gate to each proposal. Produce evolution_proposals.md.")
+```
+
+Output: `projects/[project]/output/sysctl/evolution_proposals_YYYYMMDD.md` → MUST upload to GDrive.
+
+### `/nebuah sysctl prune [project]`
+
+Identify dead/redundant agents and stale memory. Delegates to `skillos-systemcontrol-plugin:LifecycleManagerAgent`.
+
+```
+Task(subagent_type="skillos-systemcontrol-plugin:LifecycleManagerAgent", prompt="Identify agents in projects/[project]/ with zero traces, 100% failure rate, or superseded by better agents. Run cascading reference validation before proposing deletions. Produce prune_candidates.md.")
+```
+
+Output: `projects/[project]/output/sysctl/prune_candidates_YYYYMMDD.md` → MUST upload to GDrive.
+
+### `/nebuah sysctl full [project]`
+
+Run all modes in sequence: AUDIT → SCORE → EVOLVE → PRUNE. Launch each agent and collect results.
+
+### `/nebuah sysctl health`
+
+Generate a health report across all projects. Combines audit + score + lightweight prune scan.
+
+Output: `projects/_system/output/sysctl/health_report_YYYYMMDD.md` → MUST upload to GDrive.
+
+### Sysctl GDrive Rules
+
+All sysctl reports MUST be uploaded to GDrive:
+1. Create `output/sysctl/` folder in the project's GDrive if it doesn't exist
+2. Upload each report with `disableConversionToGoogleType: true`
+3. The sysctl execution report MUST include a GDrive section confirming uploads
+
+---
+
 ## EXECUTION WORKFLOW
 
-For non-dream goals, execute the standard cognitive pipeline:
+For non-dream, non-loop, non-sysctl goals, execute the standard cognitive pipeline:
 
 ### Step 0: GDRIVE AUTO-BOOTSTRAP (MANDATORY — Run Once)
 
@@ -259,7 +324,14 @@ Before planning, load the system's accumulated knowledge:
 2. Read `system/memory/strategies/_dream_journal.md` — check last 3 entries for recent learnings
 3. Use `Grep` on `system/memory/strategies/level_*/` for keywords from the user's goal
 4. If matching strategies found (confidence >= 0.5), note them for the plan
-5. **Cross-project memory** (GDrive): Use `mcp__<gdrive>__search_files` with `fullText contains '[goal keywords]'` to find relevant strategies from past projects in Google Drive. Load matches with `read_file_content` and add as Priority 15 context.
+5. **Cross-project strategy memory** (GDrive): Use `mcp__claude_ai_Google_Drive__search_files` with `fullText contains '[goal keywords]'` to find relevant strategies from past projects in Google Drive. Load matches with `read_file_content` and add as Priority 15 context.
+6. **Cross-project agent discovery** (GDrive):
+   a. List all project folders in GDrive: `mcp__claude_ai_Google_Drive__search_files(query: "mimeType = 'application/vnd.google-apps.folder' and parentId = '[projects_folder_id]'")`
+   b. For each past project folder, find its `components/agents/` subfolder (search for `components` then `agents` subfolders)
+   c. For each agent definition found, read its content with `mcp__claude_ai_Google_Drive__read_file_content(fileId)`
+   d. Parse YAML frontmatter for: name, capabilities, tools, type
+   e. Score relevance: match capabilities and agent type against current goal keywords and required Triad roles
+   f. Store top-scoring agents as **"reuse candidates"** for Step 4 (available for template-based agent creation)
 
 ### Step 2: ANALYZE & PLAN (Triad Decomposition)
 
@@ -309,30 +381,75 @@ projects/[CaseName]/
    mcp__<gdrive>__search_files(
      query: "title = '[CaseName]' and parentId = '[projects_folder_id]'"
    )
-3. If NOT found → create project folder + sub-folders (input/, output/, memory/long_term/)
-4. If found → reuse existing folder, discover sub-folder IDs
+3. If NOT found → create project folder + sub-folders:
+   - input/, output/, components/, components/agents/, memory/, memory/long_term/
+   Register ALL folder IDs in gdrive_registry.json under project_registry
+4. If found → reuse existing folder, discover ALL sub-folder IDs (including components/agents/)
 5. Update `system/gdrive_registry.json` with project folder IDs
 6. Download input documents from GDrive input/ folder:
    a. mcp__<gdrive>__search_files(query: "parentId = '[input_folder_id]'")
    b. For each file: read_file_content(fileId) → Write to local projects/[CaseName]/input/
    c. Supported formats: Google Docs → markdown, PDF → text, .txt, .md, .docx
-7. Report: "[N] input documents downloaded from GDrive" (or "No input documents found in GDrive")
+7. Download existing agent definitions from GDrive components/agents/ folder:
+   a. mcp__claude_ai_Google_Drive__search_files(query: "parentId = '[agents_folder_id]'")
+   b. For each agent file: read_file_content(fileId) → Write to local projects/[CaseName]/components/agents/
+   c. Log: "[N] agent definitions recovered from GDrive"
+8. Download existing memory from GDrive memory/long_term/ folder:
+   a. mcp__claude_ai_Google_Drive__search_files(query: "parentId = '[memory_long_term_folder_id]'")
+   b. For each file: read_file_content(fileId) → Write to local projects/[CaseName]/memory/long_term/
+   c. Log: "[N] memory files recovered from GDrive"
+9. Report: "[N] input docs, [M] agent definitions, [K] memory files recovered from GDrive"
 ```
 
 This is fully automatic — the user never needs to run `gdrive init` or `gdrive pull` separately.
 
-### Step 4: CREATE SPECIALIZED AGENTS (Minimum 3)
+### Step 4: CREATE SPECIALIZED AGENTS (Minimum 3 — Reuse Before Create)
 
 For each sub-task (always at least 3 from Triad Decomposition):
 
-1. Design an agent with YAML frontmatter + detailed system prompt
-2. Write to `projects/[CaseName]/components/agents/[AgentName].md`
-3. Include in the agent's prompt:
+**First, check for reusable agents:**
+1. Check **reuse candidates** from Step 1.6 (cross-project agent discovery from GDrive)
+2. Check **recovered agents** from Step 3.7 (current project's agents downloaded from GDrive)
+3. If a matching agent is found with relevant capabilities and role:
+   a. Load its definition as a base template
+   b. Update: project name, parent trace ID, injected strategies/constraints from current context
+   c. Preserve: proven capabilities, tools, output format, working patterns
+   d. Write updated definition to `projects/[CaseName]/components/agents/[AgentName].md`
+   e. Log: "Reused agent [name] from [source project] as template"
+
+**If no reusable match, create from scratch:**
+4. Design an agent with YAML frontmatter + detailed system prompt
+5. Write to `projects/[CaseName]/components/agents/[AgentName].md`
+6. Include in the agent's prompt:
    - Its specific role and legal expertise
    - Relevant strategies from the memory query
    - Applicable negative constraints
    - Expected output format
    - The trace ID to use as parent for its own traces
+
+### Step 4.5: UPLOAD AGENT DEFINITIONS TO GDRIVE (MANDATORY)
+
+After all agents are created (Step 4), upload every agent definition to GDrive:
+
+```
+For each file in projects/[CaseName]/components/agents/:
+1. Search for existing file with same title in GDrive agents folder:
+   mcp__claude_ai_Google_Drive__search_files(
+     query: "title = '[AgentName].md' and parentId = '[components_agents_folder_id]'"
+   )
+2. If found: skip (agent already in GDrive)
+3. If not found: upload:
+   Read file → base64 encode → mcp__claude_ai_Google_Drive__create_file(
+     title: "[AgentName].md",
+     mimeType: "text/plain",
+     parentId: "[components_agents_folder_id]",
+     content: base64,
+     disableConversionToGoogleType: true
+   )
+4. Log: "[N] agent definitions uploaded to GDrive"
+```
+
+This step is NON-OPTIONAL. Agent definitions MUST be in GDrive for cross-session reuse.
 
 ### Step 5: EXECUTE THE PLAN (Delegation)
 
