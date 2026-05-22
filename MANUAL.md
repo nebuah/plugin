@@ -13,8 +13,8 @@ Guia completa para instalar el plugin de Nebuah en Claude Code y configurar el c
   - [Verificar la Instalacion](#verificar-la-instalacion)
   - [Desinstalar el Plugin](#desinstalar-el-plugin)
 - [Parte 2: Configurar el Conector de Google Drive](#parte-2-configurar-el-conector-de-google-drive)
-  - [Paso 1: Crear Credenciales OAuth 2.0](#paso-1-crear-credenciales-oauth-20)
-  - [Paso 2: Agregar el Conector en Claude](#paso-2-agregar-el-conector-en-claude)
+  - [Paso 1: Abrir Customize en Claude](#paso-1-abrir-customize-en-claude)
+  - [Paso 2: Activar el Conector de Google Drive](#paso-2-activar-el-conector-de-google-drive)
   - [Paso 3: Verificar la Conexion](#paso-3-verificar-la-conexion)
 - [Parte 3: Primera Ejecucion de Nebuah](#parte-3-primera-ejecucion-de-nebuah)
 - [Resolucion de Problemas](#resolucion-de-problemas)
@@ -29,7 +29,6 @@ Guia completa para instalar el plugin de Nebuah en Claude Code y configurar el c
 | **Suscripcion Claude** | Pro, Max, Team o Enterprise |
 | **Claude Desktop** | Descargar desde [claude.com/download](https://claude.com/download) (macOS o Windows) |
 | **Cuenta de Google** | Necesaria para el conector de Google Drive |
-| **Acceso a Google Cloud Console** | Para crear las credenciales OAuth 2.0 |
 
 ---
 
@@ -37,7 +36,9 @@ Guia completa para instalar el plugin de Nebuah en Claude Code y configurar el c
 
 ### Instalacion desde GitHub
 
-El repositorio del plugin de Nebuah esta en GitHub: `https://github.com/nebuah/plugin`
+El plugin de Nebuah se instala desde su repositorio en GitHub:
+
+> **https://github.com/nebuah/plugin**
 
 Hay dos formas de instalarlo. Ambas se ejecutan **dentro de Claude Code** (la pestaña Code de Claude Desktop).
 
@@ -46,7 +47,7 @@ Hay dos formas de instalarlo. Ambas se ejecutan **dentro de Claude Code** (la pe
 Abre una sesion de Claude Code y escribe:
 
 ```
-Instala el plugin de Nebuah desde el marketplace de GitHub nebuah/plugin
+Instala el plugin de Nebuah desde https://github.com/nebuah/plugin
 ```
 
 Claude ejecutara automaticamente los comandos necesarios para agregar el marketplace e instalar el plugin.
@@ -60,10 +61,16 @@ Si prefieres hacerlo tu mismo con comandos explicitos, sigue la Opcion B.
 Dentro de Claude Code, ejecuta:
 
 ```
-/plugin marketplace add nebuah/plugin
+/plugin marketplace add https://github.com/nebuah/plugin.git
 ```
 
-Esto registra el repositorio `https://github.com/nebuah/plugin` como un marketplace de plugins. Claude Code descarga el catalogo y hace que los plugins del repositorio esten disponibles para instalar.
+Esto registra el repositorio como un marketplace de plugins. Claude Code descarga el catalogo y hace que los plugins del repositorio esten disponibles para instalar.
+
+Tambien puedes usar el formato corto:
+
+```
+/plugin marketplace add nebuah/plugin
+```
 
 **Paso 2 — Instalar el plugin:**
 
@@ -98,7 +105,7 @@ Cuando hay una nueva version del plugin en GitHub, puedes actualizar de dos form
 #### Opcion A: Pedirle a Claude
 
 ```
-Actualiza el plugin de Nebuah a la ultima version desde nebuah/plugin
+Actualiza el plugin de Nebuah a la ultima version desde https://github.com/nebuah/plugin
 ```
 
 #### Opcion B: Comandos manuales
@@ -160,66 +167,26 @@ Para remover el marketplace completamente:
 
 Nebuah **requiere** Google Drive para funcionar correctamente. Todos los archivos producidos (outputs, estrategias, agentes, memorias) se guardan automaticamente en Google Drive. Sin el conector, Nebuah funciona pero pierde la capacidad de persistir archivos en la nube, sincronizar entre sesiones y reutilizar agentes entre proyectos.
 
-### Paso 1: Crear Credenciales OAuth 2.0
+Claude ya incluye un conector integrado de Google Drive — no necesitas crear credenciales en Google Cloud Console ni configurar OAuth manualmente. Solo hay que activarlo.
 
-1. Ve a la **Google Cloud Console**: [console.cloud.google.com](https://console.cloud.google.com)
+### Paso 1: Abrir Customize en Claude
 
-2. Crea un proyecto nuevo o selecciona uno existente
+1. Abre **Claude Desktop** o **Claude.ai** en el navegador
+2. Haz clic en el boton **Customize** (icono de sliders/ajustes, junto al cuadro de texto del prompt)
+3. Ve a la seccion **Connectors**
 
-3. Habilita la **Google Drive API**:
-   - Ve a **APIs & Services > Library**
-   - Busca "Google Drive API"
-   - Haz clic en **Enable**
+### Paso 2: Activar el Conector de Google Drive
 
-4. Configura la pantalla de consentimiento OAuth:
-   - Ve a **APIs & Services > OAuth consent screen** (o **Google Auth Platform > Branding**)
-   - Selecciona **External** (o **Internal** si usas Google Workspace)
-   - Completa los campos obligatorios (nombre de la app, email de soporte)
-   - En **Scopes**, agrega: `https://www.googleapis.com/auth/drive`
-   - Guarda
+1. En la lista de conectores disponibles, busca **Google Drive**
+2. Haz clic en **Connect** (o **Enable**)
+3. Se abrira una ventana de autorizacion de Google — inicia sesion con tu cuenta de Google y acepta los permisos para que Claude pueda acceder a tu Google Drive
+4. Una vez autorizado, el conector aparecera como **Connected** (activo)
 
-5. Crea las credenciales:
-   - Ve a **APIs & Services > Credentials** (o **Google Auth Platform > Clients**)
-   - Haz clic en **Create Credentials > OAuth client ID**
-   - Tipo de aplicacion: **Web application**
-   - Nombre: el que prefieras (ej: "Claude Drive Connector")
-   - En **Authorized redirect URIs**, agrega exactamente esta URL:
-     ```
-     https://claude.ai/api/mcp/auth_callback
-     ```
-   - Haz clic en **Create**
-
-6. **Guarda el Client ID y el Client Secret** — los necesitaras en el siguiente paso
-
-### Paso 2: Agregar el Conector en Claude
-
-1. Abre **Claude.ai** en el navegador o **Claude Desktop**
-
-2. Ve a **Settings** (icono de engranaje):
-   - En Claude.ai: Settings > Connectors
-   - En Claude Desktop: Settings > Connectors
-   - Si eres admin de un plan Team/Enterprise: Admin Settings > Connectors
-
-3. Haz clic en **Add custom connector**
-
-4. Completa los campos:
-
-   | Campo | Valor |
-   |-------|-------|
-   | **Server name** | `Google Drive` |
-   | **Remote MCP server URL** | `https://drivemcp.googleapis.com/mcp/v1` |
-
-5. Expande **Advanced settings** e ingresa:
-   - **Client ID**: el que obtuviste en el Paso 1
-   - **Client Secret**: el que obtuviste en el Paso 1
-
-6. Haz clic en **Add**
-
-7. Claude te pedira autorizar el acceso a tu Google Drive. Sigue el flujo de autorizacion de Google y acepta los permisos.
+Eso es todo. No necesitas configurar URLs, Client IDs, ni credenciales manualmente. El conector integrado de Claude maneja toda la autenticacion automaticamente.
 
 ### Paso 3: Verificar la Conexion
 
-Una vez configurado el conector, verifica que funciona dentro de Claude Code:
+Una vez activado el conector, verifica que funciona dentro de Claude Code:
 
 ```
 Lista mis 5 archivos mas recientes de Google Drive
@@ -305,10 +272,10 @@ Despues de instalar el plugin, ejecuta `/reload-plugins`. Si el problema persist
 
 ### Google Drive no conecta
 
-1. Verifica que el conector aparece en **Settings > Connectors** como activo
-2. Verifica que el redirect URI es exactamente `https://claude.ai/api/mcp/auth_callback`
-3. Revisa que la Google Drive API esta habilitada en tu proyecto de Google Cloud
-4. Intenta remover y re-agregar el conector en Claude
+1. Verifica que el conector aparece como **Connected** en **Customize > Connectors**
+2. Si aparece como desconectado, haz clic en **Connect** nuevamente y re-autoriza el acceso
+3. Verifica que tu cuenta de Google tiene acceso a Google Drive
+4. Intenta desconectar y volver a conectar el conector en Customize > Connectors
 
 ### Nebuah no sube archivos a Google Drive
 
@@ -334,8 +301,6 @@ Esto ocurre cuando Google auto-convierte archivos de texto a Google Docs. Nebuah
 
 - **Repositorio del plugin**: [github.com/nebuah/plugin](https://github.com/nebuah/plugin)
 - **Documentacion oficial de plugins de Claude Code**: [code.claude.com/docs/en/discover-plugins](https://code.claude.com/docs/en/discover-plugins)
-- **Configuracion del servidor MCP de Google Drive**: [developers.google.com/workspace/drive/api/guides/configure-mcp-server](https://developers.google.com/workspace/drive/api/guides/configure-mcp-server)
-- **Google Cloud Console**: [console.cloud.google.com](https://console.cloud.google.com)
 - **Descargar Claude Desktop**: [claude.com/download](https://claude.com/download)
 
 ---
