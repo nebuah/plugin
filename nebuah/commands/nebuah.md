@@ -427,30 +427,6 @@ For each sub-task (always at least 3 from Triad Decomposition):
    - Expected output format
    - The trace ID to use as parent for its own traces
 
-### Step 4.5: UPLOAD AGENT DEFINITIONS TO GDRIVE (MANDATORY)
-
-After all agents are created (Step 4), upload every agent definition to GDrive:
-
-```
-For each file in projects/[CaseName]/components/agents/:
-1. Search for existing file with same title in GDrive agents folder:
-   mcp__claude_ai_Google_Drive__search_files(
-     query: "title = '[AgentName].md' and parentId = '[components_agents_folder_id]'"
-   )
-2. If found: skip (agent already in GDrive)
-3. If not found: upload:
-   Read file → base64 encode → mcp__claude_ai_Google_Drive__create_file(
-     title: "[AgentName].md",
-     mimeType: "text/plain",
-     parentId: "[components_agents_folder_id]",
-     content: base64,
-     disableConversionToGoogleType: true
-   )
-4. Log: "[N] agent definitions uploaded to GDrive"
-```
-
-This step is NON-OPTIONAL. Agent definitions MUST be in GDrive for cross-session reuse.
-
 ### Step 5: EXECUTE THE PLAN (Delegation)
 
 For each sub-task in dependency order:
@@ -462,22 +438,14 @@ For each sub-task in dependency order:
 3. **Log the interaction**: Use the MemoryAnalysisAgent to record the full exchange
 4. **Update trace**: Set outcome based on results
 
-### Step 6: PRODUCE OUTPUT + UPLOAD TO GDRIVE (MANDATORY)
+### Step 6: PRODUCE OUTPUT (Local Only)
 
 1. Ensure all deliverables are saved to `projects/[CaseName]/output/`
-2. **MANDATORY upload to GDrive** (never skip this):
-   a. Read `system/gdrive_registry.json` for project output folder ID
-   b. If registry is missing or project not registered: run GDrive bootstrap (Step 0) + create project folders before uploading. Do NOT skip.
-   c. For each file in `projects/[CaseName]/output/`:
-      - Read local file → base64 encode → upload via `mcp__<gdrive>__create_file(title: "[filename]", mimeType: "text/plain", parentId: output_folder_id, content: base64, disableConversionToGoogleType: true)`
-      - ALWAYS use `disableConversionToGoogleType: true` to preserve file formatting
-   d. For each file in `projects/[CaseName]/memory/long_term/`:
-      - Same upload process to GDrive project memory folder with `disableConversionToGoogleType: true`
-   e. If any upload fails, retry once. Log failures but do NOT skip remaining files.
-3. Provide a clear summary of what was produced
-4. List all files created/modified (local + GDrive). If GDrive upload count is 0 and there are local files, this is a FAILURE.
+2. Provide a clear summary of what was produced
+3. List all files created/modified locally
+4. GDrive upload happens later in Step 8 — do NOT upload here.
 
-### Step 7: CONSOLIDATE & LEARN (Per-Agent Dream Cycles)
+### Step 7: CONSOLIDATE & LEARN (Per-Agent Dream Cycles — Local Only)
 
 After execution completes, run **one dream cycle per agent that executed** (minimum 3). All dreams launch in parallel:
 
@@ -497,15 +465,57 @@ Report consolidation results:
    - Total new strategies learned
    - Total new constraints identified
 
-**MANDATORY sync learnings to GDrive** (MUST run after dreams complete — never skip):
-1. Read `system/gdrive_registry.json` for strategy folder IDs. If missing, bootstrap GDrive first.
-2. For each new or updated strategy file:
-   - Read local content → base64 encode → `mcp__<gdrive>__create_file(title: "[strat_id].md", mimeType: "text/plain", parentId: level_folder_id, content: base64, disableConversionToGoogleType: true)`
-3. Upload updated `_negative_constraints.md` and `_dream_journal.md` to GDrive strategies folder with `disableConversionToGoogleType: true`
-4. This step is NON-OPTIONAL. All learnings MUST be in Google Drive for cross-session availability.
-5. If GDrive sync fails for any file, report it explicitly in Step 8 as a partial failure.
+**NOTE**: Dream consolidation writes strategies, constraints, and journal entries to local disk only. GDrive upload happens in Step 8.
 
-### Step 8: REPORT TO USER
+### Step 8: UPLOAD EVERYTHING TO GDRIVE (MANDATORY — All Writes Here)
+
+**All GDrive uploads happen in this single step.** Steps 1 and 3 read from GDrive, but all writes are batched here at the end. This step is NON-OPTIONAL.
+
+```
+Read `system/gdrive_registry.json` for all folder IDs.
+If registry is missing or project not registered: run GDrive bootstrap (Step 0) first.
+
+--- 8a. Upload Agent Definitions ---
+For each file in projects/[CaseName]/components/agents/:
+  1. Search for existing file: mcp__<gdrive>__search_files(
+       query: "title = '[AgentName].md' and parentId = '[components_agents_folder_id]'"
+     )
+  2. If found: skip (already in GDrive)
+  3. If not found: Read file → base64 encode → mcp__<gdrive>__create_file(
+       title: "[AgentName].md", mimeType: "text/plain",
+       parentId: "[components_agents_folder_id]",
+       content: base64, disableConversionToGoogleType: true
+     )
+
+--- 8b. Upload Output Deliverables ---
+For each file in projects/[CaseName]/output/:
+  Read local file → base64 encode → mcp__<gdrive>__create_file(
+    title: "[filename]", mimeType: "text/plain",
+    parentId: output_folder_id, content: base64,
+    disableConversionToGoogleType: true
+  )
+
+--- 8c. Upload Project Memory ---
+For each file in projects/[CaseName]/memory/long_term/:
+  Same upload process to GDrive project memory folder with disableConversionToGoogleType: true
+
+--- 8d. Upload Strategies & Learnings ---
+For each new or updated strategy file:
+  Read local content → base64 encode → mcp__<gdrive>__create_file(
+    title: "[strat_id].md", mimeType: "text/plain",
+    parentId: level_folder_id, content: base64,
+    disableConversionToGoogleType: true
+  )
+Upload updated _negative_constraints.md to GDrive strategies folder
+Upload updated _dream_journal.md to GDrive strategies folder
+All with disableConversionToGoogleType: true
+
+--- Error Handling ---
+If any upload fails, retry once. If still fails, log failure but continue remaining uploads.
+If GDrive upload count is 0 and local files exist, this is a FAILURE.
+```
+
+### Step 9: REPORT TO USER
 
 Provide a structured summary:
 ```
@@ -531,12 +541,15 @@ Provide a structured summary:
 - Total updated strategies: [count]
 - Total new constraints: [count]
 
-### Google Drive (Automatic)
-- GDrive bootstrap: [already bootstrapped | bootstrapped this run | root folder created]
-- Input documents pulled: [count] from GDrive → local
-- Output documents pushed: [count] from local → GDrive
+### Google Drive Sync (Step 8)
+- GDrive bootstrap: [already bootstrapped | bootstrapped this run]
+- Input documents pulled: [count] from GDrive → local (Step 3)
+- Agent definitions uploaded: [count] to GDrive
+- Output documents uploaded: [count] to GDrive
+- Project memories uploaded: [count] to GDrive
 - Strategies synced: [count] to GDrive
-- Cross-project memories loaded: [count] from past projects
+- Constraints/journal synced: [yes/no]
+- Failures: [count] (list any failed uploads)
 
 ### Learnings
 [2-3 sentences summarizing what the system learned from this execution]
