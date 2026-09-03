@@ -213,7 +213,7 @@ Con el plugin instalado y el conector de Google Drive configurado, Nebuah esta l
 2. **Crea la estructura de carpetas en Google Drive**:
    ```
    Nebuah/
-   ├── projects/
+   ├── proyectos/
    └── system/
        └── memory/
            └── strategies/
