@@ -14,15 +14,20 @@ system/memory/
 │   ├── _seeds/                    # Bootstrap strategies (immutable)
 │   ├── _negative_constraints.md   # Anti-patterns & guardrails
 │   └── _dream_journal.md         # Consolidation history
-├── traces/                        # SHORT-TERM MEMORY (volatile, local only)
-│   └── trace_YYYY-MM-DD.md        # Daily execution logs
+├── stores/hybrid-memory/          # The ENGINE's store (domain-keyed, no frontmatter)
+│   ├── strategies/<domain>/       #   translate with services/memory_adapter.py
+│   └── constraints/<domain>/      #   never read or write it by hand
+├── traces/                        # LEGACY: the engine never reads this tree.
+│   └── trace_YYYY-MM-DD.md        #   Write traces INSIDE the project instead:
+│                                  #   <project>/traces/<agent>/<ts>_<agent>_<task>.md
 └── gdrive_registry.json           # GDrive folder ID mappings
 
-Google Drive (Nebuah/):             # CLOUD MEMORY (persistent, shared)
-├── projects/[ProjectName]/
-│   ├── input/                     # Source documents
-│   ├── output/                    # Generated deliverables
-│   └── memory/long_term/          # Project-specific learnings
+Google Drive (Nebuah/):             # CLOUD MEMORY — one tree, shared with the engine
+├── proyectos/<project_id>/
+│   ├── 00_recibido/               # what the client sent
+│   ├── 01_progreso/               # daily progress
+│   ├── 02_entregables/            # deliverables
+│   └── _sistema/                  # project.json + components/ — how to RESUME
 └── system/memory/strategies/      # Mirror of local strategies
     ├── level_1_epics/
     ├── level_2_architecture/

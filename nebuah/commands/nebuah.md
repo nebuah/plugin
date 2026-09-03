@@ -358,50 +358,118 @@ Before planning, load the system's accumulated knowledge:
 5. Map matching strategies to sub-tasks
 6. Even for L4 REACTIVE goals, enforce the 3-agent minimum (e.g., Execute Agent, Verify Agent, Log Agent)
 
+### Step 2.5: RESUME BEFORE YOU CREATE (MANDATORY)
+
+Before creating anything, check whether this engagement already exists —
+possibly created by `nebuah-engine`, the local runtime. **Resuming is the
+default; creating is the exception.**
+
+```
+1. Search `projects/**/project.json` for a matching `name` or `description`.
+2. If found, read it:
+   a. `schema_version` > 1 → STOP. A newer runtime wrote this. Report and ask.
+   b. `confidential: true` → no GDrive, no external calls, for the whole run.
+   c. `phase` tells you where the engine left off. `phase_data.plan_tasks[]`
+      is the plan — DO NOT re-plan it.
+3. Work out what is left: for each task in `plan_tasks`, check whether its
+   `output_file` exists under the project. Missing output = pending task.
+4. Execute the pending tasks in `depends_on` order, using the team already in
+   `components/agents/ROSTER.md`. Do not rebuild a team that exists.
+5. Report explicitly: "resumed at phase X, N of M tasks already done".
+```
+
+If no project matches, and only then, continue to Step 3.
+
+### Step 2.75: TAKE THE LOCK
+
+The engine ticks these same folders. Before writing `phase` or `phase_data`:
+
+```
+Read project.json:
+  locked_by set, locked_at < 30 min old, and not "claude-code"
+    → STOP writing state. Report who holds it and what you can still do
+      (read, and write to output/, traces/, components/agents/).
+  otherwise
+    → set locked_by: "claude-code", locked_at: <ISO 8601 UTC>, and continue.
+```
+
+Clear both fields in Step 9 — **including when the run fails**. Never clear a
+lock that names someone else.
+
 ### Step 3: CREATE PROJECT STRUCTURE (Local + GDrive)
 
-Create the local project structure AND its GDrive mirror automatically:
+Create the project in the **engine's format** — the two runtimes share these
+folders, so a layout of your own makes the project invisible to the engine.
+Full spec: `docs/PROJECT_FORMAT.md` in the engine repo.
 
 **Local:**
 ```
-projects/[CaseName]/
-├── components/
-│   └── agents/          # Specialized agents for this case/engagement
-├── input/               # Input documents (downloaded from GDrive)
-├── output/              # Final deliverables (memos, briefs, contracts)
-└── memory/
-    ├── short_term/      # Case interaction logs
-    └── long_term/       # Case-consolidated learnings
+projects/<nucleus>/<slug>/          # nucleus: legal | literary | _inbox
+├── project.json                    # descriptor — see below
+├── decisions.json                  # [] if there are no open questions
+├── components/{agents,skills}/
+├── input/  knowledge/  methods/
+├── memory/{short_term,long_term/{agent_templates,domain_knowledge,workflow_patterns}}
+├── output/{sections,assets,governance}/
+└── traces/
 ```
 
-**GDrive (automatic):**
-```
-1. Read `system/gdrive_registry.json` for projects/ folder ID
-2. Search GDrive for existing project folder:
-   mcp__<gdrive>__search_files(
-     query: "title = '[CaseName]' and parentId = '[projects_folder_id]'"
-   )
-3. If NOT found → create project folder + sub-folders:
-   - input/, output/, components/, components/agents/, memory/, memory/long_term/
-   Register ALL folder IDs in gdrive_registry.json under project_registry
-4. If found → reuse existing folder, discover ALL sub-folder IDs (including components/agents/)
-5. Update `system/gdrive_registry.json` with project folder IDs
-6. Download input documents from GDrive input/ folder:
-   a. mcp__<gdrive>__search_files(query: "parentId = '[input_folder_id]'")
-   b. For each file: read_file_content(fileId) → Write to local projects/[CaseName]/input/
-   c. Supported formats: Google Docs → markdown, PDF → text, .txt, .md, .docx
-7. Download existing agent definitions from GDrive components/agents/ folder:
-   a. mcp__claude_ai_Google_Drive__search_files(query: "parentId = '[agents_folder_id]'")
-   b. For each agent file: read_file_content(fileId) → Write to local projects/[CaseName]/components/agents/
-   c. Log: "[N] agent definitions recovered from GDrive"
-8. Download existing memory from GDrive memory/long_term/ folder:
-   a. mcp__claude_ai_Google_Drive__search_files(query: "parentId = '[memory_long_term_folder_id]'")
-   b. For each file: read_file_content(fileId) → Write to local projects/[CaseName]/memory/long_term/
-   c. Log: "[N] memory files recovered from GDrive"
-9. Report: "[N] input docs, [M] agent definitions, [K] memory files recovered from GDrive"
+Put a new project in `_inbox` unless the domain is unambiguous.
+
+**`project.json` — write every field:**
+```json
+{
+  "id": "proj_<YYYYMMDD>_<slug>",
+  "name": "<slug>",
+  "state": "active",
+  "owner": "<who asked>",
+  "proposed_by": "claude-code",
+  "description": "<the goal, verbatim>",
+  "deliverables": ["..."],
+  "created_at": "<ISO 8601 UTC>",
+  "updated_at": "<ISO 8601 UTC>",
+  "completed_at": null,
+  "schema_version": 1,
+  "tags": [],
+  "confidential": false,
+  "phase": "planning",
+  "phase_data": {
+    "entered_at": "<ISO 8601 UTC>",
+    "plan_tasks": [
+      {
+        "id": "task_1",
+        "title": "...",
+        "description": "...",
+        "skill": "<slug or 'none'>",
+        "output_file": "output/01_....md",
+        "depends_on": [],
+        "context_from": [],
+        "difficulty": "medium",
+        "worker_instruction": "<the full prompt for this task>",
+        "team": [],
+        "mode": "full",
+        "contract": "auxiliar",
+        "priority": "high"
+      }
+    ]
+  }
+}
 ```
 
-This is fully automatic — the user never needs to run `gdrive init` or `gdrive pull` separately.
+**Keep `phase` current as you go.** `planning` → `executing` → `reviewing` →
+`delivering` → `completed`. That field is the only thing that lets the engine —
+or a later session — pick this up where you left it.
+
+**GDrive (automatic, unless `confidential`):**
+```
+1. Read `system/gdrive_registry.json` for the projects/ folder ID
+2. Search for an existing project folder; create it with
+   input/, output/, components/agents/, memory/long_term/ if missing
+3. Register all folder IDs under project_registry
+4. Download input documents into local input/
+5. Download existing agent definitions into local components/agents/
+6. Report: "[N] input docs, [M] agent definitions, [K] memory files recovered"
+```
 
 ### Step 4: CREATE SPECIALIZED AGENTS (Minimum 3 — Reuse Before Create)
 
@@ -419,7 +487,14 @@ For each sub-task (always at least 3 from Triad Decomposition):
 
 **If no reusable match, create from scratch:**
 4. Design an agent with YAML frontmatter + detailed system prompt
-5. Write to `projects/[CaseName]/components/agents/[AgentName].md`
+5. Write to `projects/<nucleus>/<slug>/components/agents/<agent-name>.md`
+5b. **Write `components/agents/ROSTER.md`** binding each task to its agent
+    **by name** (never by position — a plan that changes length would shift
+    every agent one slot, in silence). Frontmatter: `project_id`,
+    `project_name`, `nucleus`, `version`, `approved_by`, `changelog`,
+    `members[]` with `name`, `task`, `task_index`, `description`, `mode`,
+    `derived_from`, `derived_sha`, `model`, `exam_score`, `provisional`,
+    `file`.
 6. Include in the agent's prompt:
    - Its specific role and legal expertise
    - Relevant strategies from the memory query
@@ -431,7 +506,29 @@ For each sub-task (always at least 3 from Triad Decomposition):
 
 For each sub-task in dependency order:
 
-1. **Create trace**: Write L2/L3 trace entry to `system/memory/traces/trace_YYYY-MM-DD.md`
+1. **Create trace**: write it **inside the project**, not in the global tree:
+
+   `projects/<nucleus>/<slug>/traces/<agent>/<YYYYMMDD_HHMMSS>_<agent>_<task-slug>.md`
+
+   ```yaml
+   ---
+   agent_name: <agent>
+   parent_trace_id: <id or null>
+   project: <slug>
+   skill_used: <slug or null>
+   status: ok | revise | failed
+   task: <task title>
+   timestamp: '<ISO 8601 UTC>'
+   trace_id: tr_<YYYYMMDD>_<8 hex>
+   hierarchy_level: <1-4, optional>
+   ---
+   ```
+
+   Then append one line to `traces/_index.jsonl` with `trace_id`, `path`,
+   `parent_trace_id`, `agent_name`, `initiator`, `task`, `timestamp`.
+
+   The global `system/memory/traces/trace_YYYY-MM-DD.md` is legacy: the engine
+   never reads it, so anything written there is invisible to half the system.
 2. **Delegate or execute**:
    - For core system tasks: Use `Task` with `subagent_type` matching the core agent
    - For specialized tasks: Read agent definition, then use `Task` with agent content as prompt
@@ -476,6 +573,9 @@ Read `system/gdrive_registry.json` for all folder IDs.
 If registry is missing or project not registered: run GDrive bootstrap (Step 0) first.
 
 --- 8a. Upload Agent Definitions ---
+If project.json has `confidential: true`, SKIP the entire Step 8 and say so
+in the report. Confidential engagements never leave the machine.
+
 For each file in projects/[CaseName]/components/agents/:
   1. Search for existing file: mcp__<gdrive>__search_files(
        query: "title = '[AgentName].md' and parentId = '[components_agents_folder_id]'"
@@ -515,6 +615,12 @@ If any upload fails, retry once. If still fails, log failure but continue remain
 If GDrive upload count is 0 and local files exist, this is a FAILURE.
 ```
 
+### Step 8.5: RELEASE THE LOCK
+
+Clear `locked_by` and `locked_at` in `project.json`, and set `phase` to where
+the work actually got to. Do this **even if the run failed** — an abandoned
+lock is worse than no lock. Only clear it if it says `claude-code`.
+
 ### Step 9: REPORT TO USER
 
 Provide a structured summary:
@@ -523,6 +629,9 @@ Provide a structured summary:
 
 **Goal**: [original goal]
 **Status**: [SUCCESS/PARTIAL/FAILURE]
+**Project**: [path] — resumed at phase [X] / created new
+**Phase now**: [phase written back to project.json]
+**Lock**: released
 **Traces**: [count] traces logged across [levels] hierarchy levels
 **Strategies Applied**: [list of strategy IDs used]
 
@@ -561,11 +670,22 @@ When creating specialized agents, use this template:
 
 ```markdown
 ---
-name: [AgentName]
-type: dynamic
-project: [CaseName]
-capabilities: [list of capabilities]
-tools: [tools this agent needs]
+name: [agent-name]              # kebab-case; this is the key used everywhere
+description: [one line, what this agent does]
+model: [logical role]           # razonamiento-largo | redaccion | verificacion
+                                # NEVER a vendor id like gemini-3.5-flash:
+                                # the engine runs ollama/gemma4:26b and cannot
+                                # honour it. Each runtime maps the role.
+domains: [legal]
+generated: true
+provenance: spawn | evolve:[Base] | reuse:[Base]
+performance:
+  success_count: 0
+  failure_count: 0
+  confidence: 0.5
+  deprecated: false
+exam_score: null
+provisional: false
 ---
 
 # [AgentName]

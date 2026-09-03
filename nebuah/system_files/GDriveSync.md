@@ -14,12 +14,13 @@ Defines the integration layer between the Nebuah cognitive architecture and Goog
 
 ```
 Nebuah/                                    # Root folder (shared)
-├── projects/                              # Per-engagement workspaces
+├── proyectos/                             # Per-engagement workspaces (shared with nebuah-engine)
 │   └── [ProjectName]/
 │       ├── input/                         # Source documents (Google Docs, PDF, .txt, .md)
 │       ├── output/                        # Generated deliverables
 │       ├── components/
 │       │   └── agents/                    # Dynamic specialized agent definitions (synced)
+│       ├── _sistema/                      # project.json + components/ — how to RESUME
 │       └── memory/
 │           └── long_term/                 # Project-specific consolidated learnings
 └── system/                                # Shared kernel memory
@@ -195,7 +196,7 @@ Step 0: GDRIVE AUTO-BOOTSTRAP
 
 4. Create system sub-folders (search before each to avoid duplicates):
    Root/
-   ├── projects/
+   ├── proyectos/
    └── system/
        └── memory/
            └── strategies/
@@ -901,6 +902,7 @@ GDrive operations should be logged in traces at L4 level:
 
 ### Sensitive Data Handling
 
+0. **A project with `confidential: true` in `project.json` uploads NOTHING to GDrive.** That flag is set per engagement, not per install, and it overrides every other rule on this page.
 1. **NEVER upload trace files** to GDrive. Traces contain raw execution details and may include sensitive client data. Only consolidated strategies (which are abstracted) are synced.
 2. **Upload agent definition files** to GDrive for cross-session and cross-project reuse. Agent definitions may contain case-specific context; access is controlled by GDrive folder permissions. This enables recovering proven agent configurations when resuming a project or starting a similar one.
 3. **Project inputs stay in GDrive** — downloaded locally for processing but the GDrive copy is the canonical source.
